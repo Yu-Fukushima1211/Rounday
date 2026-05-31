@@ -1655,7 +1655,12 @@ document.getElementById('nextBtn').addEventListener('click',()=>{
   if(numDays===7) anchorDate=getWeekStart(anchorDate);
   buildGrid();
 });
-document.getElementById('dayRange').addEventListener('input',function(){ numDays=Number(this.value); document.getElementById('dayCountLabel').textContent=numDays; buildGrid(); });
+document.getElementById('dayRange').addEventListener('input',function(){
+  numDays=Number(this.value);
+  document.getElementById('dayCountLabel').textContent=numDays;
+  if(numDays===7) anchorDate=getWeekStart(anchorDate);
+  buildGrid();
+});
 
 function scrollToNow(){ document.getElementById('scroll-area').scrollTop=Math.max(0,(new Date().getHours()-1-settings.timeStart))*SLOT_H; }
 document.getElementById('dayRange').value = numDays;
@@ -1852,7 +1857,8 @@ document.querySelectorAll('[data-ws]').forEach(btn => {
     settings.weekStart = Number(btn.dataset.ws);
     document.querySelectorAll('[data-ws]').forEach(b => b.classList.toggle('active', Number(b.dataset.ws) === settings.weekStart));
     saveSettings();
-    buildGrid(); // ツールバーの曜日に即反映
+    if(numDays===7) anchorDate=getWeekStart(anchorDate);
+    buildGrid();
   });
 });
 
