@@ -2067,22 +2067,29 @@ function scheduleMorningNotification(){
   if(!settings.morningNotif) return;
   const h = settings.morningNotifH || 8;
   const m = settings.morningNotifM || 0;
-  const now = new Date();
-  const todayKey = dateKey(now);
-  const notifyDt = new Date(`${todayKey}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);
-  const delay = notifyDt - Date.now();
-  if(delay < 0) return;
-  const todayEvents = allVisibleEvents()
-    .filter(ev => ev.dateKey === todayKey)
-    .sort((a,b) => a.start - b.start);
-  if(todayEvents.length === 0) return;
-  const body = todayEvents.map(ev => `・${minToTime(ev.start)} ${ev.title}`).join('\n');
-  Notification.requestPermission().then(perm=>{
-    if(perm === 'granted'){
-      setTimeout(()=>{
-        new Notification('今日の予定', { body });
-      }, delay);
-    }
+
+  [0, 1].forEach(offset => {
+    const target = addDays(new Date(), offset);
+    const dk = dateKey(target);
+    const notifyDt = new Date(`${dk}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);
+    const delay = notifyDt - Date.now();
+    if(delay < 0) return; // 既に時刻を過ぎていたらスキップ
+
+    const dayEvents = allVisibleEvents()
+      .filter(ev => ev.dateKey === dk)
+      .sort((a, b) => a.start - b.start);
+    if(dayEvents.length === 0) return;
+
+    const label = offset === 0 ? '今日の予定' : '明日の予定';
+    const body = dayEvents.map(ev => `・${minToTime(ev.start)} ${ev.title}`).join('\n');
+
+    Notification.requestPermission().then(perm => {
+      if(perm === 'granted'){
+        setTimeout(() => {
+          new Notification(label, { body });
+        }, delay);
+      }
+    });
   });
 }
 
