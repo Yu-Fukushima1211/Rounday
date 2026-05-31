@@ -1,4 +1,4 @@
-const CACHE = 'timeos-v1';
+const CACHE = 'timeos-20260531';
 const FILES = [
   './',
   './index.html',
@@ -14,4 +14,8 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request))
   );
+});
+
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });

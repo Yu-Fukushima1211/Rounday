@@ -747,8 +747,49 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
 
 <script>
   // Service Worker 登録
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js');
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    // 定期的に更新チェック（ページフォーカス時）
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update();
+    });
+
+    reg.addEventListener('updatefound', () => {
+      const newSW = reg.installing;
+      newSW.addEventListener('statechange', () => {
+        if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+          // 新バージョン検出 → バナー表示
+          showUpdateBanner(newSW);
+        }
+      });
+    });
+  });
+}
+
+function showUpdateBanner(newSW) {
+  const banner = document.createElement('div');
+  banner.style.cssText = `
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: var(--bg);
+    padding: 10px 20px; border-radius: var(--radius-btn);
+    display: flex; align-items: center; gap: 12px;
+    font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.08em;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 9999;
+  `;
+  banner.innerHTML = `
+    <span>新しいバージョンがあります</span>
+    <button style="
+      background: var(--bg); color: var(--text);
+      border: none; border-radius: var(--radius-btn);
+      padding: 5px 12px; cursor: pointer;
+      font-family: 'DM Mono', monospace; font-size: 11px;
+    ">更新する</button>
+  `;
+  banner.querySelector('button').addEventListener('click', () => {
+    newSW.postMessage({ type: 'SKIP_WAITING' });
+    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+  });
+  document.body.appendChild(banner);
 }
 const SLOT_H = 60;
 const COLORS = ['#1a1a18','#4a4a46','#888882','#b5a99a','#c0a882','#a8b89a','#9ab0c8','#b89ab0','#c89a9a'];
