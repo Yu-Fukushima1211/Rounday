@@ -1,4 +1,4 @@
-const CACHE = 'timeos-20260531';
+const CACHE = 'Rounday-20260601';
 const FILES = [
   './',
   './index.html',
@@ -10,7 +10,23 @@ self.addEventListener('install', e => {
   );
 });
 
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys => {
+      return Promise.all(
+        keys.map(key => {
+          if (key !== CACHE) return caches.delete(key);
+        })
+      );
+    })
+  );
+});
+
 self.addEventListener('fetch', e => {
+  if (e.request.mode === 'navigate') {
+    e.respondWith(fetch(e.request));
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request))
   );
