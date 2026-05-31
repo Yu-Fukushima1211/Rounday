@@ -778,6 +778,13 @@ let dragDay = null, dragStartY = 0, dragEl = null, isDragging = false;
 let notifModalTargetId = null; // コンテキストメニューから開いた時のevId
 
 function stripTime(d){ const r=new Date(d); r.setHours(0,0,0,0); return r; }
+function getWeekStart(d){
+  const day = d.getDay();
+  const diff = settings.weekStart === 1
+    ? (day === 0 ? -6 : 1 - day)
+    : -day;
+  return addDays(stripTime(d), diff);
+}
 function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
 function dateKey(d){ 
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1638,8 +1645,16 @@ function importData(file){
 scheduleAllNotifications();
 
 // ── ナビゲーション ──
-document.getElementById('prevBtn').addEventListener('click',()=>{ anchorDate=addDays(anchorDate,-numDays); buildGrid(); });
-document.getElementById('nextBtn').addEventListener('click',()=>{ anchorDate=addDays(anchorDate,numDays); buildGrid(); });
+document.getElementById('prevBtn').addEventListener('click',()=>{
+  anchorDate=addDays(anchorDate,-numDays);
+  if(numDays===7) anchorDate=getWeekStart(anchorDate);
+  buildGrid();
+});
+document.getElementById('nextBtn').addEventListener('click',()=>{
+  anchorDate=addDays(anchorDate,numDays);
+  if(numDays===7) anchorDate=getWeekStart(anchorDate);
+  buildGrid();
+});
 document.getElementById('dayRange').addEventListener('input',function(){ numDays=Number(this.value); document.getElementById('dayCountLabel').textContent=numDays; buildGrid(); });
 
 function scrollToNow(){ document.getElementById('scroll-area').scrollTop=Math.max(0,(new Date().getHours()-1-settings.timeStart))*SLOT_H; }
