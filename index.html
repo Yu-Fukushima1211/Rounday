@@ -1653,10 +1653,11 @@ document.getElementById('ctxDelete').addEventListener('click',()=>{
   closeCtx();
   const ev = events.find(e=>e.id===ctxTargetId);
   if(!ev || !ev.repeat || ev.repeat.type==='none'){
-    events = events.filter(e=>e.id!==ctxTargetId);
-    saveAll(); renderEvents();
-    return;
-  }
+  todos.forEach((t, i) => { if(t.scheduledEventId === ctxTargetId) todos[i].scheduledEventId = null; });
+  events = events.filter(e=>e.id!==ctxTargetId);
+  saveAll(); renderEvents();
+  return;
+}
   // 繰り返しあり → モーダル表示
   document.getElementById('deleteRepeatOverlay').classList.add('open');
 });
