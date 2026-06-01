@@ -527,12 +527,7 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
         <option value="monthly_dow">月の第N曜日</option>
       </select>
     </div>
-    <div class="repeat-sub" id="subWeekdays">
-      <div class="field">
-        <label>曜日</label>
-        <div class="weekday-row" id="weekdayRow"></div>
-      </div>
-    </div>
+    
     <div class="repeat-sub" id="subNWeekly">
       <div class="field">
         <label>間隔（週）</label>
@@ -562,6 +557,14 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
         </select>
       </div>
     </div>
+
+      <div class="repeat-sub" id="subWeekdays">
+        <div class="field">
+          <label>追加する曜日（複数選択可）</label>
+          <div class="weekday-row" id="weekdayRow"></div>
+        </div>
+      </div>
+
     <div class="repeat-sub" id="subRepeatRange">
       <div class="date-row">
         <div class="field">
@@ -756,6 +759,26 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
 <div id="schedulingBanner">
   <span>時間帯をドラッグして予定を作成</span>
   <button class="cancel-btn" id="schedulingCancel">キャンセル</button>
+</div>
+
+<!-- DELETE REPEAT MODAL -->
+<div class="overlay" id="deleteRepeatOverlay">
+  <div class="modal" style="width:min(300px,94vw);">
+    <div class="modal-header">
+      <span class="modal-title">繰り返し予定の削除</span>
+      <button class="modal-close" id="deleteRepeatClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:13px; color:var(--text); line-height:1.6;">
+        どの範囲を削除しますか？
+      </div>
+    </div>
+    <div class="modal-footer" style="flex-direction:column; gap:8px;">
+      <button class="btn" id="deleteRepeatOne" style="width:100%; text-align:center;">この日だけ削除</button>
+      <button class="btn" id="deleteRepeatAfter" style="width:100%; text-align:center;">この日以降をすべて削除</button>
+      <button class="btn danger" id="deleteRepeatAll" style="width:100%; text-align:center; color:#c0392b;">すべて削除</button>
+    </div>
+  </div>
 </div>
 
 <!-- CTX MENU -->
@@ -1226,7 +1249,12 @@ const weeks=ev.repeat.monthWeeks?.length>0
 match=weeks.includes(weekOfMonth);
       }
     }
-    if(match){ results.push({...ev, dateKey:dateKey(cur), _virtual:true, _baseId:ev.id}); }
+    if(match){
+  const excluded = ev.excludeDates || [];
+  if(!excluded.includes(dateKey(cur))){
+     results.push({...ev, dateKey:dateKey(cur), _virtual:true, _baseId:ev.id});
+     }
+    }
     cur=addDays(cur,1);
   }
   return results;
@@ -1604,7 +1632,65 @@ document.getElementById('dayMemoClear').addEventListener('click',()=>{
   closeDayMemoModal();
 });
 document.getElementById('ctxAddTask').addEventListener('click',()=>{ closeCtx(); openTaskModal(null,ctxTargetId); });
-document.getElementById('ctxDelete').addEventListener('click',()=>{ events=events.filter(e=>e.id!==ctxTargetId); saveAll(); closeCtx(); renderEvents(); });
+document.getElementById('ctxDelete').addEventListener('click',()=>{
+  closeCtx();
+  const ev = events.find(e=>e.id===ctxTargetId);
+  if(!ev || !ev.repeat || ev.repeat.type==='none'){
+    events = events.filter(e=>e.id!==ctxTargetId);
+    saveAll(); renderEvents();
+    return;
+  }
+  // 繰り返しあり → モーダル表示
+  document.getElementById('deleteRepeatOverlay').classList.add('open');
+});
+
+function getCtxDateKey(){
+  const evEl = document.querySelector(`[data-ev-id="${ctxTargetId}"]`);
+  return evEl?.closest('.day-col')?.dataset.dateKey;
+}
+
+document.getElementById('deleteRepeatClose').addEventListener('click',()=>{
+  document.getElementById('deleteRepeatOverlay').classList.remove('open');
+});
+document.getElementById('deleteRepeatOverlay').addEventListener('click',e=>{
+  if(e.target.id==='deleteRepeatOverlay')
+    document.getElementById('deleteRepeatOverlay').classList.remove('open');
+});
+
+// この日だけ削除
+document.getElementById('deleteRepeatOne').addEventListener('click',()=>{
+  const dk = getCtxDateKey();
+  if(dk){
+    const idx = events.findIndex(e=>e.id===ctxTargetId);
+    if(!events[idx].excludeDates) events[idx].excludeDates=[];
+    events[idx].excludeDates.push(dk);
+    saveAll(); renderEvents();
+  }
+  document.getElementById('deleteRepeatOverlay').classList.remove('open');
+});
+
+// この日以降をすべて削除
+document.getElementById('deleteRepeatAfter').addEventListener('click',()=>{
+  const dk = getCtxDateKey();
+  if(dk){
+    const idx = events.findIndex(e=>e.id===ctxTargetId);
+    const prevDay = dateKey(addDays(new Date(dk+'T00:00:00'),-1));
+    if(prevDay < events[idx].repeat.from){
+      events = events.filter(e=>e.id!==ctxTargetId);
+    } else {
+      events[idx].repeat.to = prevDay;
+    }
+    saveAll(); renderEvents();
+  }
+  document.getElementById('deleteRepeatOverlay').classList.remove('open');
+});
+
+// すべて削除
+document.getElementById('deleteRepeatAll').addEventListener('click',()=>{
+  events = events.filter(e=>e.id!==ctxTargetId);
+  saveAll(); renderEvents();
+  document.getElementById('deleteRepeatOverlay').classList.remove('open');
+});
 document.addEventListener('click',()=>closeCtx());
 document.addEventListener('touchstart', e=>{
   if(!e.target.closest('#ctxMenu')) closeCtx();
