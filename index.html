@@ -967,7 +967,12 @@ function showUpdateBanner(newSW) {
   document.body.appendChild(banner);
 }
 const SLOT_H = 60;
-const COLORS = ['#1a1a18','#4a4a46','#888882','#b5a99a','#c0a882','#a8b89a','#9ab0c8','#b89ab0','#c89a9a'];
+const COLORS = [
+  // 既存9色
+  '#1a1a18','#4a4a46','#888882','#b5a99a','#c0a882','#a8b89a','#9ab0c8','#b89ab0','#c89a9a',
+  // 追加11色
+  '#7ab87a','#5a9cb8','#c87a5a','#b8b84a','#8a5ab8','#c85a7a','#5ab8a8','#b85a5a','#5a7ab8','#c8a050','#7ab8b0',
+];
 const DOW = ['日','月','火','水','木','金','土'];
 
 let numDays = window.innerWidth < 480 ? 1 : 3;
