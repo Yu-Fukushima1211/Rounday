@@ -115,7 +115,7 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
 /* SCROLL */
 #scroll-area { height: calc(100vh - var(--header-h) - var(--toolbar-h)); overflow-y: auto; overflow-x: hidden; }
 #scroll-area { height: calc(100dvh - var(--header-h) - var(--toolbar-h) - env(safe-area-inset-bottom, 0px)); }
-#grid { display: flex; position: relative; min-height: calc(var(--slot-h) * 24); }
+#grid { display: flex; position: relative;  }
 #time-col { width: var(--time-col); min-width: var(--time-col); position: relative; border-right: 1px solid var(--border); background: var(--surface); }
 .time-label { position: absolute; left: 0; right: 0; height: var(--slot-h); display: flex; align-items: flex-start; justify-content: flex-end; padding: 3px 8px 0 0; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-faint); pointer-events: none; }
 .time-label.hour-0 { color: transparent; }
@@ -1165,11 +1165,11 @@ function buildTimeCol(){
   const hours = settings.timeEnd - settings.timeStart;
   for(let i=0;i<=hours;i++){
     const h = settings.timeStart + i;
-    if(h > 23) break;
+    if(h > 24) break;
     const lbl=document.createElement('div');
     lbl.className='time-label'+(h===0?' hour-0':'');
     lbl.style.top=(i*SLOT_H)+'px';
-    lbl.textContent=String(h).padStart(2,'0')+':00';
+    lbl.textContent=h===24?'24:00':String(h).padStart(2,'0')+':00';
     col.appendChild(lbl);
   }
   col.style.height=(hours*SLOT_H)+'px';
