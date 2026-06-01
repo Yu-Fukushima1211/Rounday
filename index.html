@@ -783,15 +783,18 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
 
 <!-- CTX MENU -->
 <div class="ctx-menu" id="ctxMenu">
+  <div style="display:flex; justify-content:flex-end; padding:4px 4px 0;">
+    <button style="background:none; border:none; cursor:pointer; font-size:16px; color:var(--text-muted); line-height:1; padding:0 4px;" id="ctxClose">×</button>
+  </div>
   <div class="ctx-item" id="ctxEdit">✏ 編集</div>
   <div class="ctx-item" id="ctxNotifEdit">🔔 通知を編集</div>
   <div class="ctx-item" id="ctxDayMemo">🗒 この日だけメモ</div>
   <div class="ctx-item" id="ctxNextOccurrence">📅 次回を確認</div>
   <div class="ctx-item" id="ctxAddTask">🔔 リマインダーを追加</div>
-  <div class="ctx-item" id="ctxAddTodo" style="display:none;">📝 タスクを追加</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item danger" id="ctxDelete">✕ 削除</div>
 </div>
+
 <!-- DRAWER OVERLAY -->
 <div id="drawerOverlay"></div>
 
@@ -1162,8 +1165,10 @@ function buildTimeCol(){
   for(let i=0;i<=hours;i++){
     const h = settings.timeStart + i;
     if(h > 23) break;
-    const lbl=document.createElement('div'); lbl.className='time-label'+(i===0?' hour-0':'');
-    lbl.style.top=(i*SLOT_H)+'px'; lbl.textContent=i===0?'':String(h).padStart(2,'0')+':00';
+    const lbl=document.createElement('div');
+    lbl.className='time-label'+(h===0?' hour-0':'');
+    lbl.style.top=(i*SLOT_H)+'px';
+    lbl.textContent=String(h).padStart(2,'0')+':00';
     col.appendChild(lbl);
   }
   col.style.height=(hours*SLOT_H)+'px';
@@ -1569,6 +1574,12 @@ function openCtx(id, x, y){
   }
   const m = document.getElementById('ctxMenu');
   m.style.left = x + 'px'; m.style.top = y + 'px'; m.classList.add('open');
+  // はみ出し補正
+  const rect = m.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if(rect.right > vw) m.style.left = (x - rect.width)+'px';
+  if(rect.bottom > vh) m.style.top = (y - rect.height)+'px';
 }
 
 function closeCtx(){ document.getElementById('ctxMenu').classList.remove('open'); }
@@ -1690,6 +1701,10 @@ document.getElementById('deleteRepeatAll').addEventListener('click',()=>{
   events = events.filter(e=>e.id!==ctxTargetId);
   saveAll(); renderEvents();
   document.getElementById('deleteRepeatOverlay').classList.remove('open');
+});
+document.getElementById('ctxClose').addEventListener('click', e => {
+  e.stopPropagation();
+  closeCtx();
 });
 document.addEventListener('click',()=>closeCtx());
 document.addEventListener('touchstart', e=>{
