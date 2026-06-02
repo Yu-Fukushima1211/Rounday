@@ -365,6 +365,207 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
   box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 350;
   align-items: center; gap: 12px; white-space: nowrap;
 }
+/* SELF MESSAGE PANEL */
+#selfMessagePanel {
+  display: none;
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(300px, 90vw);
+  background: var(--surface);
+  border-left: 1px solid var(--border-strong);
+  z-index: 410;
+  flex-direction: column;
+  box-shadow: -4px 0 16px rgba(0,0,0,0.07);
+}
+
+#selfMessagePanel.open {
+  display: flex;
+}
+
+.self-message-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.self-message-card.done {
+  opacity: 0.45;
+}
+
+.self-message-card.done .self-message-text {
+  text-decoration: line-through;
+}
+
+.self-message-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.self-message-check-btn {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  cursor: pointer;
+  background: none;
+  flex-shrink: 0;
+  margin-top: 1px;
+  transition: border-color 0.1s;
+}
+
+.self-message-check-btn:hover {
+  border-color: var(--text);
+}
+
+.self-message-check-btn.checked {
+  background: var(--border-strong);
+  border-color: var(--border-strong);
+}
+
+.self-message-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.self-message-text {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.self-message-event {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.self-message-time {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.self-message-done-toggle {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.06em;
+  padding: 8px 4px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.self-message-done-toggle:hover {
+  color: var(--text);
+}
+
+.self-message-done-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* SELF MESSAGE BANNER */
+#selfMessageBanner {
+  display: none;
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 24px));
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.14);
+  z-index: 360;
+  padding: 10px 12px;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+#selfMessageBanner.active {
+  display: flex;
+}
+
+.self-message-banner-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.self-message-banner-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.self-message-banner-text {
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.self-message-banner-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+
+.self-message-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.self-message-banner-btn {
+  border: 1px solid var(--border-strong);
+  background: none;
+  color: var(--text);
+  border-radius: var(--radius-btn);
+  padding: 4px 7px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.self-message-banner-btn:hover {
+  background: var(--border);
+}
+
+.self-message-banner-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.self-message-banner-close:hover {
+  color: var(--text);
+}
+
 #schedulingBanner.active { display: flex; }
 #schedulingBanner .cancel-btn {
   background: var(--bg); color: var(--text); border: none;
@@ -687,6 +888,15 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
   <button class="panel-add-btn" id="todoAddBtn">＋ タスクを追加</button>
 </div>
 
+<!-- SELF MESSAGE PANEL -->
+<div id="selfMessagePanel">
+  <div class="panel-header">
+    <span class="panel-title">💬 自分へのメッセージ</span>
+    <button class="panel-close" id="selfMessagePanelClose">×</button>
+  </div>
+  <div class="panel-body" id="selfMessageList"></div>
+</div>
+
 <!-- BULK NOTIF MODAL -->
 <div class="overlay" id="bulkNotifOverlay">
   <div class="modal">
@@ -761,6 +971,19 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
   <button class="cancel-btn" id="schedulingCancel">キャンセル</button>
 </div>
 
+<!-- SELF MESSAGE BANNER -->
+<div id="selfMessageBanner">
+  <div class="self-message-banner-main">
+    <div class="self-message-banner-label">MESSAGE</div>
+    <div class="self-message-banner-text" id="selfMessageBannerText"></div>
+    <div class="self-message-banner-meta" id="selfMessageBannerMeta"></div>
+  </div>
+  <div class="self-message-banner-actions">
+    <button class="self-message-banner-btn" id="selfMessageBannerDone">完了</button>
+    <button class="self-message-banner-close" id="selfMessageBannerClose">×</button>
+  </div>
+</div>
+
 <!-- DELETE REPEAT MODAL -->
 <div class="overlay" id="deleteRepeatOverlay">
   <div class="modal" style="width:min(300px,94vw);">
@@ -830,6 +1053,16 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
       </span>
       メッセージを一括設定
     </button> 
+    <button class="drawer-item" id="drawerSelfMessage">
+      <span class="drawer-item-icon">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2.5 3.5h10v6.5h-6l-3 2.5v-2.5h-1z"/>
+          <line x1="5" y1="6" x2="10" y2="6"/>
+          <line x1="5" y1="8" x2="8.5" y2="8"/>
+        </svg>
+      </span>
+  自分へのメッセージ
+</button>
     <button class="drawer-item" id="drawerTodo">
       <span class="drawer-item-icon">
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
@@ -1007,6 +1240,9 @@ let pendingFromTodoId = null;        // 予定保存時にTODOを更新するた
 
 // ── 通知モーダル（単体）用のターゲット管理 ──
 let notifModalTargetId = null; // コンテキストメニューから開いた時のevId
+
+// ── 自分へのメッセージ ──
+let currentSelfMessageBannerItem = null;
 
 function stripTime(d){ const r=new Date(d); r.setHours(0,0,0,0); return r; }
 function getWeekStart(d){
@@ -1513,6 +1749,9 @@ document.getElementById('modalSave').addEventListener('click',()=>{
     to:document.getElementById('fRepeatTo').value,
   };
   const notifEnabled=document.getElementById('fNotifEnabled').checked;
+  const existingEvForNotif = modalMode === 'edit' ? events.find(e => e.id === editId) : null;
+  const existingSelfMessageStatusByDate = existingEvForNotif?.notification?.statusByDate || {};
+
   const obj={
     title, type:selectedType, color:selectedColor, start:sMin, end:eMin,
     memo:document.getElementById('fMemo').value.trim(),
@@ -1523,6 +1762,7 @@ document.getElementById('modalSave').addEventListener('click',()=>{
       notifH:notifEnabled?Number(document.getElementById('fNotifH').value):null,
       notifM:notifEnabled?Number(document.getElementById('fNotifM').value):null,
       message:document.getElementById('fNotifMsg').value.trim(),
+      statusByDate: existingSelfMessageStatusByDate,
     },
     
     alertTiming: document.getElementById('fAlertTiming').value,
@@ -1531,12 +1771,13 @@ document.getElementById('modalSave').addEventListener('click',()=>{
     alertMsg: document.getElementById('fAlertMsg').value.trim(),
     notifOverrides:modalMode==='edit'?(events.find(e=>e.id===editId)?.notifOverrides||{}):{},
   };
+
   
   // fromTodoIdを付与（TODOから予定化した場合）
   if(pendingFromTodoId !== null) obj.fromTodoId = pendingFromTodoId;
   if(modalMode==='create'){ obj.id=nextEvId++; events.push(obj); }
   else { const idx=events.findIndex(e=>e.id===editId); if(idx!==-1){ obj.id=editId; events[idx]=obj; } }
-  saveAll(); closeModal(); renderEvents(); scheduleAllNotifications();
+  saveAll(); closeModal(); renderEvents(); scheduleAllNotifications(); renderSelfMessagePanel(); updateSelfMessageBanner();
   // TODOのscheduledEventIdを更新
   if(pendingFromTodoId !== null) {
     const tIdx = todos.findIndex(t => t.id === pendingFromTodoId);
@@ -1777,18 +2018,258 @@ document.getElementById('bulkNotifSave').addEventListener('click',()=>{
     const idx=events.findIndex(e=>e.id===evId);
     if(idx===-1) return;
     if(cb.checked){
-      events[idx].notification={
-        enabled:true, notifH, notifM,
-        message:msg||(events[idx].notification?.message||''),
-      };
-    } else {
-      // チェックを外したら通知オフ
-      if(events[idx].notification) events[idx].notification.enabled=false;
-    }
+  events[idx].notification={
+    enabled:true,
+    notifH,
+    notifM,
+    message:msg||(events[idx].notification?.message||''),
+    statusByDate: events[idx].notification?.statusByDate || {},
+  };
+} else {
+  // チェックを外したら通知オフ
+  if(events[idx].notification) events[idx].notification.enabled=false;
+}
   });
   saveAll(); closeBulkNotifModal(); scheduleAllNotifications();
-  renderEvents();
+renderEvents();
+renderSelfMessagePanel();
+updateSelfMessageBanner();
 });
+
+// ══════════════════════════════════════════
+//  自分へのメッセージ 機能
+// ══════════════════════════════════════════
+
+function getBaseEventById(evId) {
+  return events.find(e => e.id === evId);
+}
+
+function ensureSelfMessageStatus(ev, dk) {
+  if (!ev.notification) ev.notification = {};
+  if (!ev.notification.statusByDate) ev.notification.statusByDate = {};
+  if (!ev.notification.statusByDate[dk]) {
+    ev.notification.statusByDate[dk] = {
+      done: false,
+      doneAt: null,
+      bannerDismissedAt: null
+    };
+  }
+  return ev.notification.statusByDate[dk];
+}
+
+function getSelfMessageItems() {
+  const items = [];
+
+  allVisibleEvents().forEach(ev => {
+    if (!ev.notification || !ev.notification.enabled) return;
+    if (ev.notification.notifH == null) return;
+
+    const evId = ev._baseId || ev.id;
+    const baseEv = getBaseEventById(evId);
+    if (!baseEv) return;
+
+    const dk = ev.dateKey;
+    const status = ensureSelfMessageStatus(baseEv, dk);
+
+    items.push({
+      evId,
+      dateKey: dk,
+      title: ev.title,
+      start: ev.start,
+      end: ev.end,
+      notifH: ev.notification.notifH,
+      notifM: ev.notification.notifM || 0,
+      message: ev.notification.message || `${ev.title}はどうでしたか？`,
+      done: !!status.done,
+      doneAt: status.doneAt || null,
+      bannerDismissedAt: status.bannerDismissedAt || null
+    });
+  });
+
+  return items.sort((a, b) => {
+    const ad = `${a.dateKey}T${String(a.notifH).padStart(2,'0')}:${String(a.notifM).padStart(2,'0')}:00`;
+    const bd = `${b.dateKey}T${String(b.notifH).padStart(2,'0')}:${String(b.notifM).padStart(2,'0')}:00`;
+    return new Date(ad) - new Date(bd);
+  });
+}
+
+function formatSelfMessageDateTime(item) {
+  const d = new Date(item.dateKey + 'T00:00:00');
+  return `${d.getMonth()+1}/${d.getDate()} ${String(item.notifH).padStart(2,'0')}:${String(item.notifM).padStart(2,'0')}`;
+}
+
+function renderSelfMessagePanel() {
+  const list = document.getElementById('selfMessageList');
+  if (!list) return;
+
+  list.innerHTML = '';
+
+  const items = getSelfMessageItems();
+  const active = items.filter(item => !item.done);
+  const done = items.filter(item => item.done).sort((a, b) => new Date(b.doneAt || 0) - new Date(a.doneAt || 0));
+
+  if (active.length === 0 && done.length === 0) {
+    list.innerHTML = '<div style="color:var(--text-faint);font-size:12px;text-align:center;padding:24px 0;">自分へのメッセージはありません</div>';
+    return;
+  }
+
+  active.forEach(item => {
+    list.appendChild(makeSelfMessageCard(item, false));
+  });
+
+  if (done.length > 0) {
+    let doneOpen = false;
+
+    const toggle = document.createElement('button');
+    toggle.className = 'self-message-done-toggle';
+    toggle.textContent = `▶ 完了済み（${done.length}件）`;
+    list.appendChild(toggle);
+
+    const doneList = document.createElement('div');
+    doneList.className = 'self-message-done-list';
+    doneList.style.display = 'none';
+
+    done.forEach(item => {
+      doneList.appendChild(makeSelfMessageCard(item, true));
+    });
+
+    list.appendChild(doneList);
+
+    toggle.addEventListener('click', () => {
+      doneOpen = !doneOpen;
+      doneList.style.display = doneOpen ? 'flex' : 'none';
+      doneList.style.flexDirection = 'column';
+      toggle.textContent = `${doneOpen ? '▼' : '▶'} 完了済み（${done.length}件）`;
+    });
+  }
+}
+
+function makeSelfMessageCard(item, isDone) {
+  const card = document.createElement('div');
+  card.className = 'self-message-card' + (isDone ? ' done' : '');
+
+  card.innerHTML = `
+    <div class="self-message-card-top">
+      <button class="self-message-check-btn${isDone ? ' checked' : ''}" title="${isDone ? '未完了に戻す' : '完了にする'}"></button>
+      <div class="self-message-body">
+        <div class="self-message-text">${esc(item.message)}</div>
+        <div class="self-message-event">📅 ${esc(item.title)}</div>
+        <div class="self-message-time">💬 ${formatSelfMessageDateTime(item)}</div>
+      </div>
+    </div>
+  `;
+
+  card.querySelector('.self-message-check-btn').addEventListener('click', () => {
+    if (isDone) {
+      markSelfMessageUndone(item.evId, item.dateKey);
+    } else {
+      markSelfMessageDone(item.evId, item.dateKey);
+    }
+  });
+
+  return card;
+}
+
+function markSelfMessageDone(evId, dk) {
+  const ev = getBaseEventById(evId);
+  if (!ev) return;
+
+  const status = ensureSelfMessageStatus(ev, dk);
+  status.done = true;
+  status.doneAt = new Date().toISOString();
+  status.bannerDismissedAt = new Date().toISOString();
+
+  saveAll();
+  renderSelfMessagePanel();
+  updateSelfMessageBanner();
+}
+
+function markSelfMessageUndone(evId, dk) {
+  const ev = getBaseEventById(evId);
+  if (!ev) return;
+
+  const status = ensureSelfMessageStatus(ev, dk);
+  status.done = false;
+  status.doneAt = null;
+  status.bannerDismissedAt = null;
+
+  saveAll();
+  renderSelfMessagePanel();
+  updateSelfMessageBanner();
+}
+
+function openSelfMessagePanel() {
+  const panel = document.getElementById('selfMessagePanel');
+  if (!panel) return;
+  panel.classList.add('open');
+  renderSelfMessagePanel();
+}
+
+function closeSelfMessagePanel() {
+  const panel = document.getElementById('selfMessagePanel');
+  if (!panel) return;
+  panel.classList.remove('open');
+}
+
+function getDueSelfMessageItems() {
+  const now = new Date();
+
+  return getSelfMessageItems().filter(item => {
+    if (item.done) return false;
+    if (item.bannerDismissedAt) return false;
+
+    const notifyDt = new Date(
+      `${item.dateKey}T${String(item.notifH).padStart(2,'0')}:${String(item.notifM).padStart(2,'0')}:00`
+    );
+
+    return notifyDt <= now;
+  });
+}
+
+function updateSelfMessageBanner() {
+  const banner = document.getElementById('selfMessageBanner');
+  if (!banner) return;
+
+  const dueItems = getDueSelfMessageItems();
+
+  if (dueItems.length === 0) {
+    banner.classList.remove('active');
+    currentSelfMessageBannerItem = null;
+    return;
+  }
+
+  const item = dueItems[0];
+  currentSelfMessageBannerItem = item;
+
+  document.getElementById('selfMessageBannerText').textContent = item.message;
+  document.getElementById('selfMessageBannerMeta').textContent = `${item.title} / ${formatSelfMessageDateTime(item)}`;
+
+  banner.classList.add('active');
+}
+
+function dismissSelfMessageBanner() {
+  if (!currentSelfMessageBannerItem) return;
+
+  const item = currentSelfMessageBannerItem;
+  const ev = getBaseEventById(item.evId);
+  if (!ev) return;
+
+  const status = ensureSelfMessageStatus(ev, item.dateKey);
+  status.bannerDismissedAt = new Date().toISOString();
+
+  saveAll();
+  updateSelfMessageBanner();
+}
+
+function completeCurrentSelfMessageBanner() {
+  if (!currentSelfMessageBannerItem) return;
+
+  markSelfMessageDone(
+    currentSelfMessageBannerItem.evId,
+    currentSelfMessageBannerItem.dateKey
+  );
+}
+
 // ══════════════════════════════════════════
 //  TODO 機能
 // ══════════════════════════════════════════
@@ -2094,26 +2575,47 @@ document.getElementById('taskModalSave').addEventListener('click',()=>{
 
 // ── 通知スケジューリング（絶対時刻版）──
 function scheduleEvNotification(ev, dk){
-  if(!ev.notification||!ev.notification.enabled) return;
-  if(ev.notification.notifH==null) return;
-  const overrides=ev.notifOverrides||{};
-  const ov=overrides[dk];
-  if(ov&&ov.skip) return;
-  const h=(ov&&ov.notifH!=null)?ov.notifH:ev.notification.notifH;
-  const m=(ov&&ov.notifM!=null)?ov.notifM:ev.notification.notifM||0;
-  const notifyDt=new Date(dk+'T'+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':00');
-  const delay=notifyDt-Date.now();
-  if(delay<0) return;
-  Notification.requestPermission().then(perm=>{
-    if(perm==='granted'){
-      setTimeout(()=>{
+  if(!ev.notification || !ev.notification.enabled) return;
+  if(ev.notification.notifH == null) return;
+
+  const evId = ev._baseId || ev.id;
+  const baseEv = getBaseEventById(evId);
+  if(!baseEv) return;
+
+  const status = ensureSelfMessageStatus(baseEv, dk);
+  if(status.done) return;
+
+  const overrides = ev.notifOverrides || {};
+  const ov = overrides[dk];
+  if(ov && ov.skip) return;
+
+  const h = (ov && ov.notifH != null) ? ov.notifH : ev.notification.notifH;
+  const m = (ov && ov.notifM != null) ? ov.notifM : ev.notification.notifM || 0;
+
+  const notifyDt = new Date(dk + 'T' + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':00');
+  const delay = notifyDt - Date.now();
+
+  if(delay < 0) return;
+
+  Notification.requestPermission().then(perm => {
+    if(perm === 'granted'){
+      setTimeout(() => {
+        const latestBaseEv = getBaseEventById(evId);
+        if(!latestBaseEv) return;
+
+        const latestStatus = ensureSelfMessageStatus(latestBaseEv, dk);
+        if(latestStatus.done) return;
+
         new Notification(ev.notification.message || `${ev.title}はどうでしたか？`, {
           body: `📅 ${minToTime(ev.start)}〜${minToTime(ev.end)}`
         });
-      },delay);
+
+        updateSelfMessageBanner();
+      }, delay);
     }
   });
 }
+
 
 function scheduleAlertTiming(ev, dk){
   const timing = ev.alertTiming || 'none';
@@ -2391,7 +2893,16 @@ document.getElementById('drawerOverlay').addEventListener('click', closeDrawer);
 document.getElementById('drawerSettings').addEventListener('click',()=>{ closeDrawer(); openSettingsModal(); });
 document.getElementById('drawerReminder').addEventListener('click',()=>{ closeDrawer(); document.getElementById('taskPanel').classList.toggle('open'); renderTaskList(); });
 document.getElementById('drawerBulkNotif').addEventListener('click',()=>{ closeDrawer(); openBulkNotifModal(); });
+document.getElementById('drawerSelfMessage').addEventListener('click', () => {
+  closeDrawer();
+  openSelfMessagePanel();
+});
 
+document.getElementById('selfMessagePanelClose').addEventListener('click', closeSelfMessagePanel);
+
+document.getElementById('selfMessageBannerClose').addEventListener('click', dismissSelfMessageBanner);
+
+document.getElementById('selfMessageBannerDone').addEventListener('click', completeCurrentSelfMessageBanner);
 
 // ── 設定モーダル ──
 function populateSettingsTimeSelects() {
@@ -2497,6 +3008,9 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
 applyTheme(settings.theme || 'classic');
 buildGrid();
 scrollToNow();
+renderSelfMessagePanel();
+updateSelfMessageBanner();
+setInterval(updateSelfMessageBanner, 60000);
 </script>
 </body>
 </html>
