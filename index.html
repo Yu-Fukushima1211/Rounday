@@ -2059,16 +2059,21 @@ function ensureSelfMessageStatus(ev, dk) {
 
 function getSelfMessageItems() {
   const items = [];
+  const todayKey = todayStr();
 
   allVisibleEvents().forEach(ev => {
     if (!ev.notification || !ev.notification.enabled) return;
     if (ev.notification.notifH == null) return;
 
+    const dk = ev.dateKey;
+
+    // 自分へのメッセージは「その日の振り返り」なので、未来分は一覧にも出さない
+    if (dk > todayKey) return;
+
     const evId = ev._baseId || ev.id;
     const baseEv = getBaseEventById(evId);
     if (!baseEv) return;
 
-    const dk = ev.dateKey;
     const status = ensureSelfMessageStatus(baseEv, dk);
 
     items.push({
@@ -2213,10 +2218,14 @@ function closeSelfMessagePanel() {
 
 function getDueSelfMessageItems() {
   const now = new Date();
+  const todayKey = todayStr();
 
   return getSelfMessageItems().filter(item => {
     if (item.done) return false;
     if (item.bannerDismissedAt) return false;
+
+    // バナー表示は「今日の分だけ」にする
+    if (item.dateKey !== todayKey) return false;
 
     const notifyDt = new Date(
       `${item.dateKey}T${String(item.notifH).padStart(2,'0')}:${String(item.notifM).padStart(2,'0')}:00`
@@ -2578,6 +2587,10 @@ function scheduleEvNotification(ev, dk){
   if(!ev.notification || !ev.notification.enabled) return;
   if(ev.notification.notifH == null) return;
 
+  // 自分へのメッセージ通知は「その日分だけ」予約する
+  // 繰り返し予定の未来分を一気に通知予約しないための制限
+  if(dk !== todayStr()) return;
+
   const evId = ev._baseId || ev.id;
   const baseEv = getBaseEventById(evId);
   if(!baseEv) return;
@@ -2662,14 +2675,22 @@ function scheduleAlertTiming(ev, dk){
 
 function scheduleAllNotifications(){
   if(!('Notification' in window)) return;
+
+  const todayKey = todayStr();
   const scheduled = new Set();
-  allVisibleEvents().forEach(ev=>{
-    const key = `${ev._baseId||ev.id}::${ev.dateKey}`;
+
+  allVisibleEvents().forEach(ev => {
+    // 自分へのメッセージ通知は今日の予定分だけ予約する
+    if(ev.dateKey !== todayKey) return;
+
+    const key = `${ev._baseId || ev.id}::${ev.dateKey}`;
     if(scheduled.has(key)) return;
     scheduled.add(key);
+
     scheduleEvNotification(ev, ev.dateKey);
     scheduleAlertTiming(ev, ev.dateKey);
   });
+
   scheduleMorningNotification();
 }
 
