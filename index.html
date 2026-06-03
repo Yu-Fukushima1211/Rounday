@@ -1823,9 +1823,33 @@ document.getElementById('modalSave').addEventListener('click',()=>{
     from:document.getElementById('fRepeatFrom').value,
     to:document.getElementById('fRepeatTo').value,
   };
-  const notifEnabled=document.getElementById('fNotifEnabled').checked;
+  const notifEnabled = document.getElementById('fNotifEnabled').checked;
   const existingEvForNotif = modalMode === 'edit' ? events.find(e => e.id === editId) : null;
-  const existingSelfMessageStatusByDate = existingEvForNotif?.notification?.statusByDate || {};
+
+  const oldNotifSignature = existingEvForNotif
+    ? JSON.stringify({
+      enabled: !!existingEvForNotif.notification?.enabled,
+      notifH: existingEvForNotif.notification?.notifH ?? null,
+      notifM: existingEvForNotif.notification?.notifM ?? null,
+      message: existingEvForNotif.notification?.message || ''
+    })
+  : null;
+
+  const newNotifSignature = JSON.stringify({
+   enabled: !!notifEnabled,
+    notifH: notifEnabled ? Number(document.getElementById('fNotifH').value) : null,
+    notifM: notifEnabled ? Number(document.getElementById('fNotifM').value) : null,
+    message: document.getElementById('fNotifMsg').value.trim()
+  });
+
+  const selfMessageNotificationChanged =
+    modalMode === 'edit' &&
+    existingEvForNotif &&
+    oldNotifSignature !== newNotifSignature;
+
+  const existingSelfMessageStatusByDate = selfMessageNotificationChanged
+    ? {}
+    : (existingEvForNotif?.notification?.statusByDate || {});
 
   const obj={
     title, type:selectedType, color:selectedColor, start:sMin, end:eMin,
@@ -2098,35 +2122,75 @@ document.getElementById('bulkNotifSave').addEventListener('click',()=>{
   const isOnce = document.getElementById('bulkRepeatOnce').classList.contains('active');
   const checked=document.querySelectorAll('#bulkEvList input[type=checkbox]');
   checked.forEach(cb=>{
-    const evId=Number(cb.dataset.evid);
-    const idx=events.findIndex(e=>e.id===evId);
-    if(idx===-1) return;
-    if(cb.checked){
-      if(isOnce){
-        // この日だけ → notifOverridesに保存
-        if(!events[idx].notifOverrides) events[idx].notifOverrides={};
-        events[idx].notifOverrides[dk]={
-          notifH, notifM,
-          message: msg || (events[idx].notification?.message || ''),
-          enabled: true,
-        };
-      } else {
-        // 毎回繰り返し → notificationに保存
-        events[idx].notification={
-          enabled:true, notifH, notifM,
-          message:msg||(events[idx].notification?.message||''),
-          statusByDate: events[idx].notification?.statusByDate || {},
-        };
-      }
+  const evId = Number(cb.dataset.evid);
+  const idx = events.findIndex(e => e.id === evId);
+  if(idx === -1) return;
+
+  const ev = events[idx];
+
+  if(cb.checked){
+    if(isOnce){
+      // この日だけ → notifOverridesに保存
+      if(!ev.notifOverrides) ev.notifOverrides = {};
+
+      ev.notifOverrides[dk] = {
+        notifH,
+        notifM,
+        message: msg || (ev.notification?.message || ''),
+        enabled: true,
+      };
+
+      // この日だけの通知内容を変えたので、この日の閉じ/完了/再通知状態をリセット
+      resetSelfMessageStatusForDate(ev, dk);
     } else {
-      if(isOnce){
-        if(!events[idx].notifOverrides) events[idx].notifOverrides={};
-        events[idx].notifOverrides[dk]={ skip: true };
-      } else {
-        if(events[idx].notification) events[idx].notification.enabled=false;
+      // 毎回繰り返し → notificationに保存
+      const oldSignature = JSON.stringify({
+        enabled: !!ev.notification?.enabled,
+        notifH: ev.notification?.notifH ?? null,
+        notifM: ev.notification?.notifM ?? null,
+        message: ev.notification?.message || ''
+      });
+
+      const newSignature = JSON.stringify({
+        enabled: true,
+        notifH,
+        notifM,
+        message: msg || (ev.notification?.message || '')
+      });
+
+      ev.notification = {
+        enabled: true,
+        notifH,
+        notifM,
+        message: msg || (ev.notification?.message || ''),
+        statusByDate: ev.notification?.statusByDate || {},
+      };
+
+      // 毎回設定が変わった場合は、過去の閉じ/完了/再通知状態をリセット
+      if(oldSignature !== newSignature) {
+        resetAllSelfMessageStatuses(ev);
       }
     }
-  });
+  } else {
+    if(isOnce){
+      if(!ev.notifOverrides) ev.notifOverrides = {};
+
+      ev.notifOverrides[dk] = { skip: true };
+
+      // この日だけ通知OFFにしたので、この日の状態もリセット
+      resetSelfMessageStatusForDate(ev, dk);
+    } else {
+      const wasEnabled = !!ev.notification?.enabled;
+
+      if(ev.notification) ev.notification.enabled = false;
+
+      // 毎回通知OFFにした場合も状態をリセット
+      if(wasEnabled) {
+        resetAllSelfMessageStatuses(ev);
+      }
+    }
+  }
+});
   saveAll(); closeBulkNotifModal(); scheduleAllNotifications();
   renderEvents(); renderSelfMessagePanel(); updateSelfMessageBanner();
 });
@@ -2137,6 +2201,59 @@ document.getElementById('bulkNotifSave').addEventListener('click',()=>{
 
 function getBaseEventById(evId) {
   return events.find(e => e.id === evId);
+}
+function getEffectiveSelfMessageNotification(ev, dk) {
+  const ov = ev.notifOverrides?.[dk];
+
+  // この日だけスキップ
+  if (ov && ov.skip) return null;
+
+  // この日だけ設定
+  if (ov && ov.enabled) {
+    if (ov.notifH == null) return null;
+
+    return {
+      enabled: true,
+      notifH: Number(ov.notifH),
+      notifM: Number(ov.notifM || 0),
+      message: ov.message || ev.notification?.message || ''
+    };
+  }
+
+  // 通常設定
+  const notif = ev.notification || {};
+  if (!notif.enabled) return null;
+  if (notif.notifH == null) return null;
+
+  return {
+    enabled: true,
+    notifH: Number(notif.notifH),
+    notifM: Number(notif.notifM || 0),
+    message: notif.message || ''
+  };
+}
+
+function resetSelfMessageStatusForDate(ev, dk) {
+  if (!ev.notification) ev.notification = {};
+  if (!ev.notification.statusByDate) ev.notification.statusByDate = {};
+
+  if (ev.notification.statusByDate[dk]) {
+    ev.notification.statusByDate[dk].done = false;
+    ev.notification.statusByDate[dk].doneAt = null;
+    ev.notification.statusByDate[dk].bannerDismissedAt = null;
+    ev.notification.statusByDate[dk].snoozedUntil = null;
+  }
+}
+
+function resetAllSelfMessageStatuses(ev) {
+  if (!ev.notification || !ev.notification.statusByDate) return;
+
+  Object.keys(ev.notification.statusByDate).forEach(dk => {
+    ev.notification.statusByDate[dk].done = false;
+    ev.notification.statusByDate[dk].doneAt = null;
+    ev.notification.statusByDate[dk].bannerDismissedAt = null;
+    ev.notification.statusByDate[dk].snoozedUntil = null;
+  });
 }
 
 function ensureSelfMessageStatus(ev, dk) {
@@ -2164,13 +2281,13 @@ function getSelfMessageItems() {
   const todayKey = todayStr();
 
   allVisibleEvents().forEach(ev => {
-    if (!ev.notification || !ev.notification.enabled) return;
-    if (ev.notification.notifH == null) return;
-
     const dk = ev.dateKey;
 
     // 自分へのメッセージは「その日の振り返り」なので、未来分は一覧にも出さない
     if (dk > todayKey) return;
+
+    const effectiveNotif = getEffectiveSelfMessageNotification(ev, dk);
+    if (!effectiveNotif) return;
 
     const evId = ev._baseId || ev.id;
     const baseEv = getBaseEventById(evId);
@@ -2184,9 +2301,9 @@ function getSelfMessageItems() {
       title: ev.title,
       start: ev.start,
       end: ev.end,
-      notifH: ev.notification.notifH,
-      notifM: ev.notification.notifM || 0,
-      message: ev.notification.message || `${ev.title}はどうでしたか？`,
+      notifH: effectiveNotif.notifH,
+      notifM: effectiveNotif.notifM || 0,
+      message: effectiveNotif.message || `${ev.title}はどうでしたか？`,
       done: !!status.done,
       doneAt: status.doneAt || null,
       bannerDismissedAt: status.bannerDismissedAt || null,
@@ -2858,8 +2975,8 @@ document.getElementById('taskModalSave').addEventListener('click',()=>{
 
 // ── 通知スケジューリング（絶対時刻版）──
 function scheduleEvNotification(ev, dk){
-  if(!ev.notification || !ev.notification.enabled) return;
-  if(ev.notification.notifH == null) return;
+  const effectiveNotif = getEffectiveSelfMessageNotification(ev, dk);
+  if (!effectiveNotif) return;
 
   // 自分へのメッセージ通知は「その日分だけ」予約する
   // 繰り返し予定の未来分を一気に通知予約しないための制限
@@ -2871,17 +2988,16 @@ function scheduleEvNotification(ev, dk){
 
   const status = ensureSelfMessageStatus(baseEv, dk);
   if(status.done) return;
+  if(status.bannerDismissedAt) return;
 
-  const overrides = ev.notifOverrides || {};
-  const ov = overrides[dk];
-  if(ov && ov.skip) return;
+  const notifyDt = new Date(
+    dk + 'T' +
+    String(effectiveNotif.notifH).padStart(2,'0') + ':' +
+    String(effectiveNotif.notifM || 0).padStart(2,'0') +
+    ':00'
+  );
 
-  const h = (ov && ov.notifH != null) ? ov.notifH : ev.notification.notifH;
-  const m = (ov && ov.notifM != null) ? ov.notifM : ev.notification.notifM || 0;
-
-  const notifyDt = new Date(dk + 'T' + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':00');
   const delay = notifyDt - Date.now();
-
   if(delay < 0) return;
 
   Notification.requestPermission().then(perm => {
@@ -2892,8 +3008,9 @@ function scheduleEvNotification(ev, dk){
 
         const latestStatus = ensureSelfMessageStatus(latestBaseEv, dk);
         if(latestStatus.done) return;
+        if(latestStatus.bannerDismissedAt) return;
 
-        new Notification(ev.notification.message || `${ev.title}はどうでしたか？`, {
+        new Notification(effectiveNotif.message || `${ev.title}はどうでしたか？`, {
           body: `📅 ${minToTime(ev.start)}〜${minToTime(ev.end)}`
         });
 
