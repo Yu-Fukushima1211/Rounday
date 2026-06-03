@@ -988,8 +988,64 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
     <div class="self-message-banner-meta" id="selfMessageBannerMeta"></div>
   </div>
   <div class="self-message-banner-actions">
+    <button class="self-message-banner-btn" id="selfMessageBannerSnooze">再通知</button>
     <button class="self-message-banner-btn" id="selfMessageBannerDone">完了</button>
     <button class="self-message-banner-close" id="selfMessageBannerClose">×</button>
+    </div>
+</div>
+
+<!-- SELF MESSAGE SNOOZE MODAL -->
+<div class="overlay" id="selfSnoozeOverlay">
+  <div class="modal" style="width:min(340px,94vw);">
+    <div class="modal-header">
+      <span class="modal-title">再通知</span>
+      <button class="modal-close" id="selfSnoozeClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>再通知タイミング</label>
+        <select id="selfSnoozeType">
+          <option value="day">1日後</option>
+          <option value="week">1週間後</option>
+          <option value="hours">何時間後</option>
+          <option value="custom">カスタム</option>
+        </select>
+      </div>
+
+      <div class="field" id="selfSnoozeHoursField" style="display:none;">
+        <label>何時間後</label>
+        <input type="number" id="selfSnoozeHours" min="1" max="168" value="3" style="
+          padding:7px 9px;
+          border:1px solid var(--border-strong);
+          border-radius:var(--radius-btn);
+          font-family:'Noto Sans JP',sans-serif;
+          font-size:13px;
+          background:var(--bg);
+          color:var(--text);
+          outline:none;
+          width:100%;
+        ">
+      </div>
+
+      <div id="selfSnoozeCustomField" style="display:none; flex-direction:column; gap:12px;">
+        <div class="field">
+          <label>日付</label>
+          <input type="date" id="selfSnoozeCustomDate">
+        </div>
+        <div class="field">
+          <label>時刻</label>
+          <div class="time-row">
+            <select id="selfSnoozeCustomH" style="flex:1"></select>
+            <span class="time-sep">:</span>
+            <select id="selfSnoozeCustomM" style="flex:1"></select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="selfSnoozeCancel">キャンセル</button>
+      <button class="btn btn-primary" id="selfSnoozeSave">保存</button>
+    </div>
   </div>
 </div>
 
@@ -1226,6 +1282,13 @@ let nextTId = load('tos-tid') || 1;
 // ── 設定 ──
 let settings = load('rounday-settings') || { weekStart: 0, timeStart: 0, timeEnd: 24, theme: 'classic', morningNotif: false, morningNotifH: 8, morningNotifM: 0 };
 function saveSettings() { save('rounday-settings', settings); }
+if (!settings.selfMessageSnoozeDefault) {
+  settings.selfMessageSnoozeDefault = {
+    type: 'day',
+    hours: 3
+  };
+  saveSettings();
+}
 
 let modalMode = 'create';
 let editId = null;
@@ -1252,6 +1315,7 @@ let notifModalTargetId = null; // コンテキストメニューから開いた�
 
 // ── 自分へのメッセージ ──
 let currentSelfMessageBannerItem = null;
+let selfMessageSnoozeTimeouts = [];
 
 function stripTime(d){ const r=new Date(d); r.setHours(0,0,0,0); return r; }
 function getWeekStart(d){
@@ -1323,6 +1387,8 @@ function populateTimeSelects(){
 populateTimeSelects();
 // 通知タイミング用セレクト初期化
 populateNotifTimeSelects('fAlertH','fAlertM');
+// 自分へのメッセージ再通知カスタム時刻
+populateNotifTimeSelects('selfSnoozeCustomH','selfSnoozeCustomM');
 
 // 詳細セクション開閉
 document.getElementById('detailToggleBtn').addEventListener('click', function() {
@@ -2080,9 +2146,16 @@ function ensureSelfMessageStatus(ev, dk) {
     ev.notification.statusByDate[dk] = {
       done: false,
       doneAt: null,
-      bannerDismissedAt: null
+      bannerDismissedAt: null,
+      snoozedUntil: null
     };
   }
+
+  // 既存データ互換
+  if (!('snoozedUntil' in ev.notification.statusByDate[dk])) {
+    ev.notification.statusByDate[dk].snoozedUntil = null;
+  }
+
   return ev.notification.statusByDate[dk];
 }
 
@@ -2116,7 +2189,8 @@ function getSelfMessageItems() {
       message: ev.notification.message || `${ev.title}はどうでしたか？`,
       done: !!status.done,
       doneAt: status.doneAt || null,
-      bannerDismissedAt: status.bannerDismissedAt || null
+      bannerDismissedAt: status.bannerDismissedAt || null,
+      snoozedUntil: status.snoozedUntil || null
     });
   });
 
@@ -2212,10 +2286,12 @@ function markSelfMessageDone(evId, dk) {
   status.done = true;
   status.doneAt = new Date().toISOString();
   status.bannerDismissedAt = new Date().toISOString();
+  status.snoozedUntil = null;
 
   saveAll();
   renderSelfMessagePanel();
   updateSelfMessageBanner();
+  scheduleAllNotifications();
 }
 
 function markSelfMessageUndone(evId, dk) {
@@ -2226,10 +2302,12 @@ function markSelfMessageUndone(evId, dk) {
   status.done = false;
   status.doneAt = null;
   status.bannerDismissedAt = null;
+  status.snoozedUntil = null;
 
   saveAll();
   renderSelfMessagePanel();
   updateSelfMessageBanner();
+  scheduleAllNotifications();
 }
 
 function openSelfMessagePanel() {
@@ -2253,7 +2331,12 @@ function getDueSelfMessageItems() {
     if (item.done) return false;
     if (item.bannerDismissedAt) return false;
 
-    // バナー表示は「今日の分だけ」にする
+    // 再通知が設定されている場合は、元の日付ではなく再通知日時で判定
+    if (item.snoozedUntil) {
+      return new Date(item.snoozedUntil) <= now;
+    }
+
+    // 通常の自分へのメッセージは今日の分だけバナー表示
     if (item.dateKey !== todayKey) return false;
 
     const notifyDt = new Date(
@@ -2306,6 +2389,168 @@ function completeCurrentSelfMessageBanner() {
     currentSelfMessageBannerItem.evId,
     currentSelfMessageBannerItem.dateKey
   );
+}
+
+function openSelfMessageSnoozeModal() {
+  if (!currentSelfMessageBannerItem) return;
+
+  restoreSelfMessageSnoozeDefault();
+
+  const tomorrow = addDays(new Date(), 1);
+  document.getElementById('selfSnoozeCustomDate').value = dateKey(tomorrow);
+  document.getElementById('selfSnoozeCustomH').value = 9;
+  document.getElementById('selfSnoozeCustomM').value = 0;
+
+  updateSelfSnoozeFields();
+
+  document.getElementById('selfSnoozeOverlay').classList.add('open');
+}
+
+function closeSelfMessageSnoozeModal() {
+  document.getElementById('selfSnoozeOverlay').classList.remove('open');
+}
+
+function updateSelfSnoozeFields() {
+  const type = document.getElementById('selfSnoozeType').value;
+
+  document.getElementById('selfSnoozeHoursField').style.display =
+    type === 'hours' ? 'flex' : 'none';
+
+  document.getElementById('selfSnoozeCustomField').style.display =
+    type === 'custom' ? 'flex' : 'none';
+}
+
+function restoreSelfMessageSnoozeDefault() {
+  const def = settings.selfMessageSnoozeDefault || { type: 'day', hours: 3 };
+
+  document.getElementById('selfSnoozeType').value = def.type || 'day';
+
+  if (def.hours) {
+    document.getElementById('selfSnoozeHours').value = def.hours;
+  }
+}
+
+function saveSelfMessageSnoozeDefault(type, hours) {
+  settings.selfMessageSnoozeDefault = {
+    type,
+    hours: hours || 3
+  };
+  saveSettings();
+}
+
+function calcSelfMessageSnoozeUntil() {
+  const type = document.getElementById('selfSnoozeType').value;
+  const now = new Date();
+
+  if (type === 'day') {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  if (type === 'week') {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 7);
+    return d;
+  }
+
+  if (type === 'hours') {
+    const hours = Math.max(1, Number(document.getElementById('selfSnoozeHours').value) || 1);
+    const d = new Date(now);
+    d.setHours(d.getHours() + hours);
+    return d;
+  }
+
+  if (type === 'custom') {
+    const dateStr = document.getElementById('selfSnoozeCustomDate').value;
+    const h = Number(document.getElementById('selfSnoozeCustomH').value);
+    const m = Number(document.getElementById('selfSnoozeCustomM').value);
+
+    if (!dateStr) return null;
+
+    return new Date(`${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);
+  }
+
+  return null;
+}
+
+function applySelfMessageSnooze() {
+  if (!currentSelfMessageBannerItem) return;
+
+  const item = currentSelfMessageBannerItem;
+  const ev = getBaseEventById(item.evId);
+  if (!ev) return;
+
+  const until = calcSelfMessageSnoozeUntil();
+  if (!until || Number.isNaN(until.getTime())) {
+    alert('再通知日時が正しくありません。');
+    return;
+  }
+
+  if (until <= new Date()) {
+    alert('現在より後の日時を指定してください。');
+    return;
+  }
+
+  const status = ensureSelfMessageStatus(ev, item.dateKey);
+  status.done = false;
+  status.doneAt = null;
+  status.bannerDismissedAt = null;
+  status.snoozedUntil = until.toISOString();
+
+  const type = document.getElementById('selfSnoozeType').value;
+  const hours = Math.max(1, Number(document.getElementById('selfSnoozeHours').value) || 3);
+  saveSelfMessageSnoozeDefault(type, hours);
+
+  saveAll();
+  closeSelfMessageSnoozeModal();
+  renderSelfMessagePanel();
+  updateSelfMessageBanner();
+  scheduleAllNotifications();
+}
+
+function scheduleSelfMessageSnoozeNotification(item) {
+  if (!item.snoozedUntil) return;
+  if (!('Notification' in window)) return;
+
+  const notifyDt = new Date(item.snoozedUntil);
+  const delay = notifyDt - Date.now();
+
+  if (delay < 0) return;
+
+  Notification.requestPermission().then(perm => {
+    if (perm !== 'granted') return;
+
+    const timerId = setTimeout(() => {
+      const ev = getBaseEventById(item.evId);
+      if (!ev) return;
+
+      const status = ensureSelfMessageStatus(ev, item.dateKey);
+      if (status.done) return;
+      if (status.bannerDismissedAt) return;
+
+      new Notification(item.message, {
+        body: `📅 ${item.title}`
+      });
+
+      updateSelfMessageBanner();
+    }, delay);
+
+    selfMessageSnoozeTimeouts.push(timerId);
+  });
+}
+
+function scheduleSelfMessageSnoozeNotifications() {
+  selfMessageSnoozeTimeouts.forEach(timerId => clearTimeout(timerId));
+  selfMessageSnoozeTimeouts = [];
+
+  getSelfMessageItems().forEach(item => {
+    if (item.done) return;
+    if (item.bannerDismissedAt) return;
+    if (!item.snoozedUntil) return;
+
+    scheduleSelfMessageSnoozeNotification(item);
+  });
 }
 
 // ══════════════════════════════════════════
@@ -2720,6 +2965,7 @@ function scheduleAllNotifications(){
     scheduleAlertTiming(ev, ev.dateKey);
   });
 
+  scheduleSelfMessageSnoozeNotifications();
   scheduleMorningNotification();
 }
 
@@ -2953,6 +3199,18 @@ document.getElementById('selfMessagePanelClose').addEventListener('click', close
 document.getElementById('selfMessageBannerClose').addEventListener('click', dismissSelfMessageBanner);
 
 document.getElementById('selfMessageBannerDone').addEventListener('click', completeCurrentSelfMessageBanner);
+
+document.getElementById('selfMessageBannerSnooze').addEventListener('click', openSelfMessageSnoozeModal);
+
+document.getElementById('selfSnoozeClose').addEventListener('click', closeSelfMessageSnoozeModal);
+document.getElementById('selfSnoozeCancel').addEventListener('click', closeSelfMessageSnoozeModal);
+document.getElementById('selfSnoozeSave').addEventListener('click', applySelfMessageSnooze);
+
+document.getElementById('selfSnoozeType').addEventListener('change', updateSelfSnoozeFields);
+
+document.getElementById('selfSnoozeOverlay').addEventListener('click', e => {
+  if (e.target.id === 'selfSnoozeOverlay') closeSelfMessageSnoozeModal();
+});
 
 // ── 設定モーダル ──
 function populateSettingsTimeSelects() {
