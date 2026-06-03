@@ -922,6 +922,15 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
         <input type="text" id="bulkNotifMsg" placeholder="例：課題出た？タスクに追加した？">
         <div style="font-size:10px; color:var(--text-faint); margin-top:4px; font-family:'DM Mono',monospace;">空欄の場合「〇〇はどうでしたか？」</div>
       </div>
+      
+      <div class="field">
+  <label>繰り返し設定</label>
+  <div class="type-toggle">
+    <button class="type-btn active" id="bulkRepeatOnce">この日だけ</button>
+    <button class="type-btn" id="bulkRepeatAlways">毎回繰り返し</button>
+  </div>
+</div>
+      
       <div class="field">
         <label>対象予定を選択</label>
         <div id="bulkEvList" style="max-height:200px; overflow-y:auto; border:1px solid var(--border); border-radius:3px; padding:4px 8px;"></div>
@@ -2007,33 +2016,53 @@ function closeBulkNotifModal(){ document.getElementById('bulkNotifOverlay').clas
 document.getElementById('bulkNotifClose').addEventListener('click',closeBulkNotifModal);
 document.getElementById('bulkNotifCancel').addEventListener('click',closeBulkNotifModal);
 document.getElementById('bulkNotifOverlay').addEventListener('click',e=>{ if(e.target.id==='bulkNotifOverlay') closeBulkNotifModal(); });
-
+document.getElementById('bulkRepeatOnce').addEventListener('click',()=>{
+  document.getElementById('bulkRepeatOnce').classList.add('active');
+  document.getElementById('bulkRepeatAlways').classList.remove('active');
+});
+document.getElementById('bulkRepeatAlways').addEventListener('click',()=>{
+  document.getElementById('bulkRepeatAlways').classList.add('active');
+  document.getElementById('bulkRepeatOnce').classList.remove('active');
+});
 document.getElementById('bulkNotifSave').addEventListener('click',()=>{
   const notifH=Number(document.getElementById('bulkNotifH').value);
   const notifM=Number(document.getElementById('bulkNotifM').value);
   const msg=document.getElementById('bulkNotifMsg').value.trim();
+  const dk=document.getElementById('bulkDate').value;
+  const isOnce = document.getElementById('bulkRepeatOnce').classList.contains('active');
   const checked=document.querySelectorAll('#bulkEvList input[type=checkbox]');
   checked.forEach(cb=>{
     const evId=Number(cb.dataset.evid);
     const idx=events.findIndex(e=>e.id===evId);
     if(idx===-1) return;
     if(cb.checked){
-  events[idx].notification={
-    enabled:true,
-    notifH,
-    notifM,
-    message:msg||(events[idx].notification?.message||''),
-    statusByDate: events[idx].notification?.statusByDate || {},
-  };
-} else {
-  // チェックを外したら通知オフ
-  if(events[idx].notification) events[idx].notification.enabled=false;
-}
+      if(isOnce){
+        // この日だけ → notifOverridesに保存
+        if(!events[idx].notifOverrides) events[idx].notifOverrides={};
+        events[idx].notifOverrides[dk]={
+          notifH, notifM,
+          message: msg || (events[idx].notification?.message || ''),
+          enabled: true,
+        };
+      } else {
+        // 毎回繰り返し → notificationに保存
+        events[idx].notification={
+          enabled:true, notifH, notifM,
+          message:msg||(events[idx].notification?.message||''),
+          statusByDate: events[idx].notification?.statusByDate || {},
+        };
+      }
+    } else {
+      if(isOnce){
+        if(!events[idx].notifOverrides) events[idx].notifOverrides={};
+        events[idx].notifOverrides[dk]={ skip: true };
+      } else {
+        if(events[idx].notification) events[idx].notification.enabled=false;
+      }
+    }
   });
   saveAll(); closeBulkNotifModal(); scheduleAllNotifications();
-renderEvents();
-renderSelfMessagePanel();
-updateSelfMessageBanner();
+  renderEvents(); renderSelfMessagePanel(); updateSelfMessageBanner();
 });
 
 // ══════════════════════════════════════════
