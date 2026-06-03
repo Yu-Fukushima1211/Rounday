@@ -1814,14 +1814,24 @@ document.getElementById('modalSave').addEventListener('click',()=>{
   const sMin=Number(document.getElementById('fSh').value)*60+Number(document.getElementById('fSm').value);
   let eMin=Number(document.getElementById('fEh').value)*60+Number(document.getElementById('fEm').value);
   if(eMin<=sMin) eMin=sMin+30;
-  const repType=document.getElementById('fRepeat').value;
-  const repeat=repType==='none'?{type:'none'}:{
-    type:repType, weekdays:[...selectedWeekdays],
-    interval:Number(document.getElementById('fNWeek').value),
-    monthWeeks:[...selectedMonthWeeks],
-    monthDow:Number(document.getElementById('fMonthDow').value),
-    from:document.getElementById('fRepeatFrom').value,
-    to:document.getElementById('fRepeatTo').value,
+  const repType = document.getElementById('fRepeat').value;
+
+// weekly / nweekly で曜日未選択のまま保存された場合は、予定日の曜日を自動で入れる
+  const fallbackWeekdays = [...selectedWeekdays];
+
+  if ((repType === 'weekly' || repType === 'nweekly') && fallbackWeekdays.length === 0) {
+    const baseDate = new Date(pendingDay + 'T00:00:00');
+    fallbackWeekdays.push(baseDate.getDay());
+  }
+
+  const repeat = repType === 'none' ? { type: 'none' } : {
+    type: repType,
+    weekdays: fallbackWeekdays,
+    interval: Number(document.getElementById('fNWeek').value),
+    monthWeeks: [...selectedMonthWeeks],
+    monthDow: Number(document.getElementById('fMonthDow').value),
+    from: document.getElementById('fRepeatFrom').value,
+    to: document.getElementById('fRepeatTo').value,
   };
   const notifEnabled = document.getElementById('fNotifEnabled').checked;
   const existingEvForNotif = modalMode === 'edit' ? events.find(e => e.id === editId) : null;
@@ -2072,16 +2082,27 @@ function renderBulkEvList(){
   const dk=document.getElementById('bulkDate').value;
   const list=document.getElementById('bulkEvList');
   list.innerHTML='';
-  const dayEvs=events.filter(ev=>{
-    // 通常予定
-    if(ev.dateKey===dk) return true;
-    // 繰り返し予定の展開
-    if(ev.repeat && ev.repeat.type!=='none'){
-      const expanded=expandRepeatingEvent(ev);
-      return expanded.some(e=>e.dateKey===dk);
-    }
+  const dayEvs = events.filter(ev => {
+  // 曜日未選択の繰り返し予定は、保存ミス由来の見えない予定として一括設定の候補から除外する
+  if (
+    ev.repeat &&
+    (ev.repeat.type === 'weekly' || ev.repeat.type === 'nweekly') &&
+    (!Array.isArray(ev.repeat.weekdays) || ev.repeat.weekdays.length === 0)
+  ) {
     return false;
-  });
+  }
+
+  // 通常予定
+  if (ev.dateKey === dk) return true;
+
+  // 繰り返し予定の展開
+  if (ev.repeat && ev.repeat.type !== 'none') {
+    const expanded = expandRepeatingEvent(ev);
+    return expanded.some(e => e.dateKey === dk);
+  }
+
+  return false;
+});
   if(dayEvs.length===0){
     list.innerHTML='<div style="color:var(--text-faint);font-size:12px;padding:8px 0;">この日に予定はありません</div>';
     return;
