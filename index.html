@@ -1344,7 +1344,13 @@ function hexToRgb(h){ return {r:parseInt(h.slice(1,3),16),g:parseInt(h.slice(3,5
 function textColor(h){ const {r,g,b}=hexToRgb(h); return (r*299+g*587+b*114)/1000>128?'#111110':'#ffffff'; }
 function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function todayStr(){ return dateKey(new Date()); }
-
+function isInvalidRepeatEvent(ev) {
+  return (
+    ev.repeat &&
+    (ev.repeat.type === 'weekly' || ev.repeat.type === 'nweekly') &&
+    (!Array.isArray(ev.repeat.weekdays) || ev.repeat.weekdays.length === 0)
+  );
+}
 // ── 通知時刻セレクト初期化 ──
 function populateNotifTimeSelects(hId, mId) {
   const selH = document.getElementById(hId);
@@ -1409,15 +1415,25 @@ document.getElementById('fNotifEnabled').addEventListener('change', function() {
 function populateLinkedGroup(excludeId) {
   const sel = document.getElementById('fLinkedGroup');
   sel.innerHTML = '<option value="">なし（新規グループ）</option>';
+
   const seen = new Set();
+
   events.forEach(ev => {
     if (ev.id === excludeId) return;
+
+    // 曜日未選択の繰り返し予定は、紐づけ候補から除外する
+    if (isInvalidRepeatEvent(ev)) return;
+
     const gid = ev.linkedGroupId || ev.id;
     const key = gid + '::' + ev.title;
+
     if (!seen.has(key)) {
       seen.add(key);
+
       const o = document.createElement('option');
-      o.value = gid; o.textContent = ev.title; sel.appendChild(o);
+      o.value = gid;
+      o.textContent = ev.title;
+      sel.appendChild(o);
     }
   });
 }
@@ -2084,25 +2100,20 @@ function renderBulkEvList(){
   list.innerHTML='';
   const dayEvs = events.filter(ev => {
   // 曜日未選択の繰り返し予定は、保存ミス由来の見えない予定として一括設定の候補から除外する
-  if (
-    ev.repeat &&
-    (ev.repeat.type === 'weekly' || ev.repeat.type === 'nweekly') &&
-    (!Array.isArray(ev.repeat.weekdays) || ev.repeat.weekdays.length === 0)
-  ) {
-    return false;
-  }
+    if (isInvalidRepeatEvent(ev)) return false;
 
   // 通常予定
-  if (ev.dateKey === dk) return true;
+    if (ev.dateKey === dk) return true;
 
   // 繰り返し予定の展開
-  if (ev.repeat && ev.repeat.type !== 'none') {
-    const expanded = expandRepeatingEvent(ev);
-    return expanded.some(e => e.dateKey === dk);
-  }
+    if (ev.repeat && ev.repeat.type !== 'none') {
+      const expanded = expandRepeatingEvent(ev);
+      return expanded.some(e => e.dateKey === dk);
+   }
 
-  return false;
-});
+   return false;
+  });
+  
   if(dayEvs.length===0){
     list.innerHTML='<div style="color:var(--text-faint);font-size:12px;padding:8px 0;">この日に予定はありません</div>';
     return;
@@ -2802,12 +2813,17 @@ function makeTodoCard(t, isDone){
 function populateTodoOriginEv(preselect){
   const sel = document.getElementById('tdOriginEv');
   sel.innerHTML = '<option value="">-- 選択しない --</option>';
+
   events.forEach(ev => {
+    // 曜日未選択の繰り返し予定は、発生元候補から除外する
+    if (isInvalidRepeatEvent(ev)) return;
+
     const o = document.createElement('option');
     o.value = ev.id;
     o.textContent = ev.title + (ev.dateKey ? ` (${ev.dateKey})` : '');
     sel.appendChild(o);
   });
+
   if(preselect) sel.value = preselect;
 }
 
@@ -2973,11 +2989,24 @@ function openTaskModal(taskId, linkedEvId){
   document.getElementById('taskOverlay').classList.add('open');
   setTimeout(()=>document.getElementById('tText').focus(),50);
 }
+
 function populateEvLink(preselect){
-  const sel=document.getElementById('tEvLink'); sel.innerHTML='<option value="">-- 選択しない --</option>';
-  events.forEach(ev=>{ const o=document.createElement('option'); o.value=ev.id; o.textContent=ev.title+(ev.dateKey?' ('+ev.dateKey+')':''); sel.appendChild(o); });
-  if(preselect) sel.value=preselect;
+  const sel = document.getElementById('tEvLink');
+  sel.innerHTML = '<option value="">-- 選択しない --</option>';
+
+  events.forEach(ev => {
+    // 曜日未選択の繰り返し予定は、関連予定候補から除外する
+    if (isInvalidRepeatEvent(ev)) return;
+
+    const o = document.createElement('option');
+    o.value = ev.id;
+    o.textContent = ev.title + (ev.dateKey ? ' (' + ev.dateKey + ')' : '');
+    sel.appendChild(o);
+  });
+
+  if(preselect) sel.value = preselect;
 }
+
 function closeTaskModal(){ document.getElementById('taskOverlay').classList.remove('open'); }
 document.getElementById('taskModalClose').addEventListener('click',closeTaskModal);
 document.getElementById('taskModalCancel').addEventListener('click',closeTaskModal);
