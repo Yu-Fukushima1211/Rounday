@@ -271,6 +271,31 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
   margin-top: 6px;
 }
 
+.task-snooze-btn {
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.06em;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.1s;
+  align-self: flex-start;
+  margin-top: 3px;
+}
+
+.task-snooze-btn:hover {
+  background: var(--border);
+}
+
+.task-card-snoozed {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
 .panel-add-btn { margin: 0 12px 12px; padding: 8px; border: 1px dashed var(--border-strong); background: none; border-radius: var(--radius-btn); cursor: pointer; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: var(--text-muted); transition: all 0.12s; }
 .panel-add-btn:hover { background: var(--border); }
 
@@ -1113,6 +1138,64 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
   </div>
 </div>
 
+<!-- REMINDER SNOOZE MODAL -->
+<div class="overlay" id="reminderSnoozeOverlay">
+  <div class="modal" style="width:min(340px,94vw);">
+    <div class="modal-header">
+      <span class="modal-title">リマインダー再通知</span>
+      <button class="modal-close" id="reminderSnoozeClose">×</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="field">
+        <label>再通知タイミング</label>
+        <select id="reminderSnoozeType">
+          <option value="day">1日後</option>
+          <option value="week">1週間後</option>
+          <option value="hours">何時間後</option>
+          <option value="custom">カスタム</option>
+        </select>
+      </div>
+
+      <div class="field" id="reminderSnoozeHoursField" style="display:none;">
+        <label>何時間後</label>
+        <input type="number" id="reminderSnoozeHours" min="1" max="168" value="3" style="
+          padding:7px 9px;
+          border:1px solid var(--border-strong);
+          border-radius:var(--radius-btn);
+          font-family:'Noto Sans JP',sans-serif;
+          font-size:13px;
+          background:var(--bg);
+          color:var(--text);
+          outline:none;
+          width:100%;
+        ">
+      </div>
+
+      <div id="reminderSnoozeCustomField" style="display:none; flex-direction:column; gap:12px;">
+        <div class="field">
+          <label>日付</label>
+          <input type="date" id="reminderSnoozeCustomDate">
+        </div>
+
+        <div class="field">
+          <label>時刻</label>
+          <div class="time-row">
+            <select id="reminderSnoozeCustomH" style="flex:1"></select>
+            <span class="time-sep">:</span>
+            <select id="reminderSnoozeCustomM" style="flex:1"></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" id="reminderSnoozeCancel">キャンセル</button>
+      <button class="btn btn-primary" id="reminderSnoozeSave">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- DELETE REPEAT MODAL -->
 <div class="overlay" id="deleteRepeatOverlay">
   <div class="modal" style="width:min(300px,94vw);">
@@ -1344,8 +1427,20 @@ let tasks = load('tos-tasks') || [];
 let nextEvId = load('tos-eid') || 1;
 let nextTId = load('tos-tid') || 1;
 // ── 設定 ──
-let settings = load('rounday-settings') || { weekStart: 0, timeStart: 0, timeEnd: 24, theme: 'classic', morningNotif: false, morningNotifH: 8, morningNotifM: 0 };
-function saveSettings() { save('rounday-settings', settings); }
+let settings = load('rounday-settings') || {
+  weekStart: 0,
+  timeStart: 0,
+  timeEnd: 24,
+  theme: 'classic',
+  morningNotif: false,
+  morningNotifH: 8,
+  morningNotifM: 0
+};
+
+function saveSettings() {
+  save('rounday-settings', settings);
+}
+
 if (!settings.selfMessageSnoozeDefault) {
   settings.selfMessageSnoozeDefault = {
     type: 'day',
@@ -1353,6 +1448,15 @@ if (!settings.selfMessageSnoozeDefault) {
   };
   saveSettings();
 }
+
+if (!settings.reminderSnoozeDefault) {
+  settings.reminderSnoozeDefault = {
+    type: 'day',
+    hours: 3
+  };
+  saveSettings();
+}
+
 
 let modalMode = 'create';
 let editId = null;
@@ -1380,6 +1484,10 @@ let notifModalTargetId = null; // コンテキストメニューから開いた�
 // ── 自分へのメッセージ ──
 let currentSelfMessageBannerItem = null;
 let selfMessageSnoozeTimeouts = [];
+
+// ── リマインダー再通知 ──
+let reminderSnoozeTargetId = null;
+let reminderNotificationTimeouts = [];
 
 function stripTime(d){ const r=new Date(d); r.setHours(0,0,0,0); return r; }
 function getWeekStart(d){
@@ -1463,7 +1571,8 @@ populateTimeSelects();
 populateNotifTimeSelects('fAlertH','fAlertM');
 // 自分へのメッセージ再通知カスタム時刻
 populateNotifTimeSelects('selfSnoozeCustomH','selfSnoozeCustomM');
-
+// リマインダー再通知カスタム時刻
+populateNotifTimeSelects('reminderSnoozeCustomH','reminderSnoozeCustomM');
 // 詳細セクション開閉
 document.getElementById('detailToggleBtn').addEventListener('click', function() {
   const sec = document.getElementById('detailSection');
@@ -2998,6 +3107,16 @@ document.getElementById('schedulingCancel').addEventListener('click', cancelTodo
 document.getElementById('taskPanelClose').addEventListener('click',()=>{ document.getElementById('taskPanel').classList.remove('open'); });
 document.getElementById('taskAddBtn').addEventListener('click',()=>openTaskModal(null,null));
 
+document.getElementById('reminderSnoozeClose').addEventListener('click', closeReminderSnoozeModal);
+document.getElementById('reminderSnoozeCancel').addEventListener('click', closeReminderSnoozeModal);
+document.getElementById('reminderSnoozeSave').addEventListener('click', applyReminderSnooze);
+
+document.getElementById('reminderSnoozeType').addEventListener('change', updateReminderSnoozeFields);
+
+document.getElementById('reminderSnoozeOverlay').addEventListener('click', e => {
+  if (e.target.id === 'reminderSnoozeOverlay') closeReminderSnoozeModal();
+});
+
 function renderTaskList(){
   const list = document.getElementById('taskList');
   list.innerHTML = '';
@@ -3046,23 +3165,32 @@ function renderTaskList(){
   }
 }
 
+function getTaskNotifyDateTime(t) {
+  return t.snoozedUntil || t.datetime;
+}
+
 function makeTaskCard(t, isDone){
   const card = document.createElement('div');
   card.className = 'task-card' + (isDone ? ' done' : '');
 
   const ev = t.evId ? events.find(e => e.id === t.evId) : null;
-  const dt = new Date(t.datetime);
-  const dtStr = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+  const notifyDt = new Date(getTaskNotifyDateTime(t));
+  const dtStr = `${notifyDt.getMonth()+1}/${notifyDt.getDate()} ${String(notifyDt.getHours()).padStart(2,'0')}:${String(notifyDt.getMinutes()).padStart(2,'0')}`;
+  const isSnoozed = !!t.snoozedUntil && !isDone;
 
   card.innerHTML = `
     <div class="task-card-top">
       <button class="task-check-btn${isDone ? ' checked' : ''}" title="${isDone ? '未完了に戻す' : '完了にする'}" data-tid="${t.id}"></button>
+
       <div class="task-card-body">
         <div class="task-card-text">${esc(t.text)}</div>
         <div class="task-card-meta">🔔 ${dtStr}</div>
+        ${isSnoozed ? `<div class="task-card-snoozed">↻ 再通知設定中</div>` : ''}
         ${t.note ? `<div class="task-card-ev">${esc(t.note)}</div>` : ''}
         ${ev ? `<div class="task-card-ev">📅 ${esc(ev.title)}</div>` : ''}
+        ${!isDone ? `<button class="task-snooze-btn" data-tid="${t.id}">再通知</button>` : ''}
       </div>
+
       <button class="task-del-btn" data-tid="${t.id}">✕</button>
     </div>
   `;
@@ -3077,22 +3205,194 @@ function makeTaskCard(t, isDone){
     } else {
       tasks[idx].done = true;
       tasks[idx].doneAt = new Date().toISOString();
+      tasks[idx].snoozedUntil = null;
     }
 
     saveAll();
     renderTaskList();
+    scheduleAllNotifications();
   });
 
   card.querySelector('.task-del-btn').addEventListener('click', () => {
     tasks = tasks.filter(tk => tk.id !== t.id);
     saveAll();
     renderTaskList();
+    scheduleAllNotifications();
   });
+
+  const snoozeBtn = card.querySelector('.task-snooze-btn');
+  if(snoozeBtn){
+    snoozeBtn.addEventListener('click', () => {
+      openReminderSnoozeModal(t.id);
+    });
+  }
 
   return card;
 }
 
 let taskModalMode='create'; let editTaskId=null;
+
+function openReminderSnoozeModal(taskId) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task || task.done) return;
+
+  reminderSnoozeTargetId = taskId;
+
+  restoreReminderSnoozeDefault();
+
+  const tomorrow = addDays(new Date(), 1);
+  document.getElementById('reminderSnoozeCustomDate').value = dateKey(tomorrow);
+  document.getElementById('reminderSnoozeCustomH').value = 9;
+  document.getElementById('reminderSnoozeCustomM').value = 0;
+
+  updateReminderSnoozeFields();
+
+  document.getElementById('reminderSnoozeOverlay').classList.add('open');
+}
+
+function closeReminderSnoozeModal() {
+  document.getElementById('reminderSnoozeOverlay').classList.remove('open');
+  reminderSnoozeTargetId = null;
+}
+
+function updateReminderSnoozeFields() {
+  const type = document.getElementById('reminderSnoozeType').value;
+
+  document.getElementById('reminderSnoozeHoursField').style.display =
+    type === 'hours' ? 'flex' : 'none';
+
+  document.getElementById('reminderSnoozeCustomField').style.display =
+    type === 'custom' ? 'flex' : 'none';
+}
+
+function restoreReminderSnoozeDefault() {
+  const def = settings.reminderSnoozeDefault || { type: 'day', hours: 3 };
+
+  document.getElementById('reminderSnoozeType').value = def.type || 'day';
+
+  if (def.hours) {
+    document.getElementById('reminderSnoozeHours').value = def.hours;
+  }
+}
+
+function saveReminderSnoozeDefault(type, hours) {
+  settings.reminderSnoozeDefault = {
+    type,
+    hours: hours || 3
+  };
+  saveSettings();
+}
+
+function calcReminderSnoozeUntil() {
+  const type = document.getElementById('reminderSnoozeType').value;
+  const now = new Date();
+
+  if (type === 'day') {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  if (type === 'week') {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 7);
+    return d;
+  }
+
+  if (type === 'hours') {
+    const hours = Math.max(1, Number(document.getElementById('reminderSnoozeHours').value) || 1);
+    const d = new Date(now);
+    d.setHours(d.getHours() + hours);
+    return d;
+  }
+
+  if (type === 'custom') {
+    const dateStr = document.getElementById('reminderSnoozeCustomDate').value;
+    const h = Number(document.getElementById('reminderSnoozeCustomH').value);
+    const m = Number(document.getElementById('reminderSnoozeCustomM').value);
+
+    if (!dateStr) return null;
+
+    return new Date(`${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);
+  }
+
+  return null;
+}
+
+function applyReminderSnooze() {
+  if (reminderSnoozeTargetId == null) return;
+
+  const idx = tasks.findIndex(t => t.id === reminderSnoozeTargetId);
+  if (idx === -1) return;
+
+  const until = calcReminderSnoozeUntil();
+
+  if (!until || Number.isNaN(until.getTime())) {
+    alert('再通知日時が正しくありません。');
+    return;
+  }
+
+  if (until <= new Date()) {
+    alert('現在より後の日時を指定してください。');
+    return;
+  }
+
+  tasks[idx].done = false;
+  tasks[idx].doneAt = null;
+  tasks[idx].snoozedUntil = until.toISOString();
+
+  const type = document.getElementById('reminderSnoozeType').value;
+  const hours = Math.max(1, Number(document.getElementById('reminderSnoozeHours').value) || 3);
+  saveReminderSnoozeDefault(type, hours);
+
+  saveAll();
+  closeReminderSnoozeModal();
+  renderTaskList();
+  scheduleAllNotifications();
+}
+
+function scheduleReminderNotifications() {
+  reminderNotificationTimeouts.forEach(timerId => clearTimeout(timerId));
+  reminderNotificationTimeouts = [];
+
+  if (!('Notification' in window)) return;
+
+  tasks.forEach(task => {
+    if (task.done) return;
+
+    const notifyAt = getTaskNotifyDateTime(task);
+    if (!notifyAt) return;
+
+    const notifyDt = new Date(notifyAt);
+    const delay = notifyDt - Date.now();
+
+    if (delay < 0) return;
+
+    Notification.requestPermission().then(perm => {
+      if (perm !== 'granted') return;
+
+      const timerId = setTimeout(() => {
+        const latestTask = tasks.find(t => t.id === task.id);
+        if (!latestTask) return;
+        if (latestTask.done) return;
+
+        const latestNotifyAt = getTaskNotifyDateTime(latestTask);
+        if (latestNotifyAt !== notifyAt) return;
+
+        const ev = latestTask.evId ? events.find(e => e.id === latestTask.evId) : null;
+
+        new Notification(latestTask.note || latestTask.text, {
+          body: ev ? `📅 ${ev.title}` : 'リマインダー'
+        });
+
+        renderTaskList();
+      }, delay);
+
+      reminderNotificationTimeouts.push(timerId);
+    });
+  });
+}
+
 function openTaskModal(taskId, linkedEvId){
   taskModalMode=taskId?'edit':'create'; editTaskId=taskId;
   document.getElementById('taskModalTitle').textContent=taskId?'EDIT REMINDER':'NEW REMINDER';
@@ -3148,17 +3448,28 @@ document.getElementById('taskModalSave').addEventListener('click',()=>{
   ? tasks.find(t => t.id === editTaskId)
   : null;
 
-  const obj = {
-    text,
-    datetime: dt.toISOString(),
-    note: document.getElementById('tNote').value.trim(),
-    evId: evIdVal ? Number(evIdVal) : null,
-    done: existingTask ? !!existingTask.done : false,
-    doneAt: existingTask ? (existingTask.doneAt || null) : null,
-  };
+const newDatetime = dt.toISOString();
+const oldDatetime = existingTask ? existingTask.datetime : null;
+
+const obj = {
+  text,
+  datetime: newDatetime,
+  note: document.getElementById('tNote').value.trim(),
+  evId: evIdVal ? Number(evIdVal) : null,
+  done: existingTask ? !!existingTask.done : false,
+  doneAt: existingTask ? (existingTask.doneAt || null) : null,
+
+  // 通知日時を編集した場合は、古い再通知状態を解除する
+  snoozedUntil: existingTask && oldDatetime === newDatetime
+    ? (existingTask.snoozedUntil || null)
+    : null,
+};
     if(taskModalMode==='create'){ obj.id=nextTId++; tasks.push(obj); }
     else { const idx=tasks.findIndex(t=>t.id===editTaskId); if(idx!==-1){ obj.id=editTaskId; tasks[idx]=obj; } }
-    saveAll(); closeTaskModal(); renderTaskList();
+    saveAll();
+    closeTaskModal();
+    renderTaskList();
+    scheduleAllNotifications();
   });
 
 // ── 通知スケジューリング（絶対時刻版）──
@@ -3271,6 +3582,7 @@ function scheduleAllNotifications(){
   });
 
   scheduleSelfMessageSnoozeNotifications();
+  scheduleReminderNotifications();
   scheduleMorningNotification();
 }
 
