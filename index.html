@@ -207,6 +207,70 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
 .task-card-ev { font-size: 10px; color: var(--text-faint); margin-top: 1px; }
 .task-del-btn { background: none; border: none; cursor: pointer; color: var(--text-faint); font-size: 13px; padding: 0; line-height: 1; }
 .task-del-btn:hover { color: #c0392b; }
+.task-card.done {
+  opacity: 0.45;
+}
+
+.task-card.done .task-card-text {
+  text-decoration: line-through;
+}
+
+.task-check-btn {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  cursor: pointer;
+  background: none;
+  flex-shrink: 0;
+  margin-top: 1px;
+  transition: border-color 0.1s;
+}
+
+.task-check-btn:hover {
+  border-color: var(--text);
+}
+
+.task-check-btn.checked {
+  background: var(--border-strong);
+  border-color: var(--border-strong);
+}
+
+.task-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.task-done-toggle {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.06em;
+  padding: 8px 4px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.task-done-toggle:hover {
+  color: var(--text);
+}
+
+.task-done-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 .panel-add-btn { margin: 0 12px 12px; padding: 8px; border: 1px dashed var(--border-strong); background: none; border-radius: var(--radius-btn); cursor: pointer; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: var(--text-muted); transition: all 0.12s; }
 .panel-add-btn:hover { background: var(--border); }
 
@@ -2935,26 +2999,97 @@ document.getElementById('taskPanelClose').addEventListener('click',()=>{ documen
 document.getElementById('taskAddBtn').addEventListener('click',()=>openTaskModal(null,null));
 
 function renderTaskList(){
-  const list=document.getElementById('taskList'); list.innerHTML='';
-  if(tasks.length===0){ list.innerHTML='<div style="color:var(--text-faint);font-size:12px;text-align:center;padding:24px 0;">リマインダーはありません</div>'; return; }
-  const sorted=[...tasks].sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
-  sorted.forEach(t=>{
-    const card=document.createElement('div'); card.className='task-card';
-    const ev=events.find(e=>e.id===t.evId);
-    const dt=new Date(t.datetime);
-    const dtStr=`${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
-    card.innerHTML=`
-      <div class="task-card-top">
-        <div class="task-card-text">${esc(t.text)}</div>
-        <button class="task-del-btn" data-tid="${t.id}">✕</button>
-      </div>
-      <div class="task-card-meta">🔔 ${dtStr}</div>
-      ${t.note?`<div class="task-card-ev">${esc(t.note)}</div>`:''}
-      ${ev?`<div class="task-card-ev">📅 ${esc(ev.title)}</div>`:''}
-    `;
-    card.querySelector('.task-del-btn').addEventListener('click',()=>{ tasks=tasks.filter(tk=>tk.id!==t.id); saveAll(); renderTaskList(); });
-    list.appendChild(card);
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+
+  const active = tasks
+    .filter(t => !t.done)
+    .sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+
+  const done = tasks
+    .filter(t => t.done)
+    .sort((a, b) => new Date(b.doneAt || 0) - new Date(a.doneAt || 0));
+
+  if(active.length === 0 && done.length === 0){
+    list.innerHTML = '<div style="color:var(--text-faint);font-size:12px;text-align:center;padding:24px 0;">リマインダーはありません</div>';
+    return;
+  }
+
+  active.forEach(t => {
+    list.appendChild(makeTaskCard(t, false));
   });
+
+  if(done.length > 0){
+    let doneOpen = false;
+
+    const toggle = document.createElement('button');
+    toggle.className = 'task-done-toggle';
+    toggle.textContent = `▶ 完了済み（${done.length}件）`;
+    list.appendChild(toggle);
+
+    const doneList = document.createElement('div');
+    doneList.className = 'task-done-list';
+    doneList.style.display = 'none';
+
+    done.forEach(t => {
+      doneList.appendChild(makeTaskCard(t, true));
+    });
+
+    list.appendChild(doneList);
+
+    toggle.addEventListener('click', () => {
+      doneOpen = !doneOpen;
+      doneList.style.display = doneOpen ? 'flex' : 'none';
+      doneList.style.flexDirection = 'column';
+      toggle.textContent = `${doneOpen ? '▼' : '▶'} 完了済み（${done.length}件）`;
+    });
+  }
+}
+
+function makeTaskCard(t, isDone){
+  const card = document.createElement('div');
+  card.className = 'task-card' + (isDone ? ' done' : '');
+
+  const ev = t.evId ? events.find(e => e.id === t.evId) : null;
+  const dt = new Date(t.datetime);
+  const dtStr = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+
+  card.innerHTML = `
+    <div class="task-card-top">
+      <button class="task-check-btn${isDone ? ' checked' : ''}" title="${isDone ? '未完了に戻す' : '完了にする'}" data-tid="${t.id}"></button>
+      <div class="task-card-body">
+        <div class="task-card-text">${esc(t.text)}</div>
+        <div class="task-card-meta">🔔 ${dtStr}</div>
+        ${t.note ? `<div class="task-card-ev">${esc(t.note)}</div>` : ''}
+        ${ev ? `<div class="task-card-ev">📅 ${esc(ev.title)}</div>` : ''}
+      </div>
+      <button class="task-del-btn" data-tid="${t.id}">✕</button>
+    </div>
+  `;
+
+  card.querySelector('.task-check-btn').addEventListener('click', () => {
+    const idx = tasks.findIndex(tk => tk.id === t.id);
+    if(idx === -1) return;
+
+    if(isDone){
+      tasks[idx].done = false;
+      tasks[idx].doneAt = null;
+    } else {
+      tasks[idx].done = true;
+      tasks[idx].doneAt = new Date().toISOString();
+    }
+
+    saveAll();
+    renderTaskList();
+  });
+
+  card.querySelector('.task-del-btn').addEventListener('click', () => {
+    tasks = tasks.filter(tk => tk.id !== t.id);
+    saveAll();
+    renderTaskList();
+  });
+
+  return card;
 }
 
 let taskModalMode='create'; let editTaskId=null;
@@ -3009,11 +3144,22 @@ document.getElementById('taskModalSave').addEventListener('click',()=>{
   const h=Number(document.getElementById('tHour').value); const m=Number(document.getElementById('tMin').value);
   const dt=new Date(dateStr+'T'+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':00');
   const evIdVal=document.getElementById('tEvLink').value;
-  const obj={ text, datetime:dt.toISOString(), note:document.getElementById('tNote').value.trim(), evId:evIdVal?Number(evIdVal):null };
-  if(taskModalMode==='create'){ obj.id=nextTId++; tasks.push(obj); }
-  else { const idx=tasks.findIndex(t=>t.id===editTaskId); if(idx!==-1){ obj.id=editTaskId; tasks[idx]=obj; } }
-  saveAll(); closeTaskModal(); renderTaskList();
-});
+  const existingTask = taskModalMode === 'edit'
+  ? tasks.find(t => t.id === editTaskId)
+  : null;
+
+  const obj = {
+    text,
+    datetime: dt.toISOString(),
+    note: document.getElementById('tNote').value.trim(),
+    evId: evIdVal ? Number(evIdVal) : null,
+    done: existingTask ? !!existingTask.done : false,
+    doneAt: existingTask ? (existingTask.doneAt || null) : null,
+  };
+    if(taskModalMode==='create'){ obj.id=nextTId++; tasks.push(obj); }
+    else { const idx=tasks.findIndex(t=>t.id===editTaskId); if(idx!==-1){ obj.id=editTaskId; tasks[idx]=obj; } }
+    saveAll(); closeTaskModal(); renderTaskList();
+  });
 
 // ── 通知スケジューリング（絶対時刻版）──
 function scheduleEvNotification(ev, dk){
