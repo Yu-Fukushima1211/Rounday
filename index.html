@@ -1351,6 +1351,10 @@ function isInvalidRepeatEvent(ev) {
     (!Array.isArray(ev.repeat.weekdays) || ev.repeat.weekdays.length === 0)
   );
 }
+function getSelectableEvents() {
+  return events.filter(ev => !isInvalidRepeatEvent(ev));
+}
+
 // ── 通知時刻セレクト初期化 ──
 function populateNotifTimeSelects(hId, mId) {
   const selH = document.getElementById(hId);
@@ -1418,11 +1422,8 @@ function populateLinkedGroup(excludeId) {
 
   const seen = new Set();
 
-  events.forEach(ev => {
+  getSelectableEvents().forEach(ev => {
     if (ev.id === excludeId) return;
-
-    // 曜日未選択の繰り返し予定は、紐づけ候補から除外する
-    if (isInvalidRepeatEvent(ev)) return;
 
     const gid = ev.linkedGroupId || ev.id;
     const key = gid + '::' + ev.title;
@@ -2098,22 +2099,19 @@ function renderBulkEvList(){
   const dk=document.getElementById('bulkDate').value;
   const list=document.getElementById('bulkEvList');
   list.innerHTML='';
-  const dayEvs = events.filter(ev => {
-  // 曜日未選択の繰り返し予定は、保存ミス由来の見えない予定として一括設定の候補から除外する
-    if (isInvalidRepeatEvent(ev)) return false;
-
+  const dayEvs = getSelectableEvents().filter(ev => {
   // 通常予定
-    if (ev.dateKey === dk) return true;
+  if (ev.dateKey === dk) return true;
 
   // 繰り返し予定の展開
-    if (ev.repeat && ev.repeat.type !== 'none') {
-      const expanded = expandRepeatingEvent(ev);
-      return expanded.some(e => e.dateKey === dk);
-   }
+  if (ev.repeat && ev.repeat.type !== 'none') {
+    const expanded = expandRepeatingEvent(ev);
+    return expanded.some(e => e.dateKey === dk);
+  }
 
-   return false;
-  });
-  
+  return false;
+});
+
   if(dayEvs.length===0){
     list.innerHTML='<div style="color:var(--text-faint);font-size:12px;padding:8px 0;">この日に予定はありません</div>';
     return;
@@ -2814,10 +2812,7 @@ function populateTodoOriginEv(preselect){
   const sel = document.getElementById('tdOriginEv');
   sel.innerHTML = '<option value="">-- 選択しない --</option>';
 
-  events.forEach(ev => {
-    // 曜日未選択の繰り返し予定は、発生元候補から除外する
-    if (isInvalidRepeatEvent(ev)) return;
-
+  getSelectableEvents().forEach(ev => {
     const o = document.createElement('option');
     o.value = ev.id;
     o.textContent = ev.title + (ev.dateKey ? ` (${ev.dateKey})` : '');
@@ -2994,10 +2989,7 @@ function populateEvLink(preselect){
   const sel = document.getElementById('tEvLink');
   sel.innerHTML = '<option value="">-- 選択しない --</option>';
 
-  events.forEach(ev => {
-    // 曜日未選択の繰り返し予定は、関連予定候補から除外する
-    if (isInvalidRepeatEvent(ev)) return;
-
+  getSelectableEvents().forEach(ev => {
     const o = document.createElement('option');
     o.value = ev.id;
     o.textContent = ev.title + (ev.dateKey ? ' (' + ev.dateKey + ')' : '');
