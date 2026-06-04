@@ -1,4 +1,4 @@
-const CACHE = 'Rounday-20260604-v5';
+const CACHE = 'Rounday-20260604-v6';
 const FILES = [
   './',
   './index.html',

@@ -3618,41 +3618,128 @@ function scheduleMorningNotification(){
 
 // ── エクスポート / インポート ──
 function exportData(){
-  const data={
-    version: 2,
+  const data = {
+    version: 3,
     exportedAt: new Date().toISOString(),
-    events, tasks, nextEvId, nextTId
+
+    // 予定
+    events,
+
+    // リマインダー
+    tasks,
+    nextEvId,
+    nextTId,
+
+    // TODO
+    todos,
+    nextTodoId,
+
+    // 設定
+    settings
   };
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`timeos-backup-${dateKey(new Date())}.json`;
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+
+  a.href = URL.createObjectURL(blob);
+  a.download = `rounday-backup-${dateKey(new Date())}.json`;
   a.click();
+
   URL.revokeObjectURL(a.href);
 }
 
 function importData(file){
   if(!file) return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const data=JSON.parse(e.target.result);
+
+  const reader = new FileReader();
+
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+
       // 最低限のバリデーション
-      if(!Array.isArray(data.events)||!Array.isArray(data.tasks)) throw new Error('invalid');
-      if(!confirm(`イベント${data.events.length}件・タスク${data.tasks.length}件を復元します。\n現在のデータは上書きされます。よろしいですか？`)) return;
-      events=data.events;
-      tasks=data.tasks;
-      nextEvId=data.nextEvId||1;
-      nextTId=data.nextTId||1;
+      if(!Array.isArray(data.events)) throw new Error('invalid events');
+      if(!Array.isArray(data.tasks)) throw new Error('invalid tasks');
+
+      const importedTodos = Array.isArray(data.todos) ? data.todos : [];
+      const importedSettings = data.settings && typeof data.settings === 'object'
+        ? data.settings
+        : settings;
+
+      const ok = confirm(
+        `バックアップを復元します。\n\n` +
+        `予定：${data.events.length}件\n` +
+        `リマインダー：${data.tasks.length}件\n` +
+        `TODO：${importedTodos.length}件\n\n` +
+        `現在のデータは上書きされます。よろしいですか？`
+      );
+
+      if(!ok) return;
+
+      // 予定
+      events = data.events;
+      nextEvId = data.nextEvId || 1;
+
+      // リマインダー
+      tasks = data.tasks;
+      nextTId = data.nextTId || 1;
+
+      // TODO
+      todos = importedTodos;
+      nextTodoId = data.nextTodoId || 1;
+
+      // 設定
+      settings = {
+        weekStart: 0,
+        timeStart: 0,
+        timeEnd: 24,
+        theme: 'classic',
+        morningNotif: false,
+        morningNotifH: 8,
+        morningNotifM: 0,
+        selfMessageSnoozeDefault: {
+          type: 'day',
+          hours: 3
+        },
+        reminderSnoozeDefault: {
+          type: 'day',
+          hours: 3
+        },
+        ...importedSettings
+      };
+
+      // 念のため、古いバックアップにない設定を補完
+      if(!settings.selfMessageSnoozeDefault){
+        settings.selfMessageSnoozeDefault = {
+          type: 'day',
+          hours: 3
+        };
+      }
+
+      if(!settings.reminderSnoozeDefault){
+        settings.reminderSnoozeDefault = {
+          type: 'day',
+          hours: 3
+        };
+      }
+
       saveAll();
+      saveSettings();
+
+      applyTheme(settings.theme || 'classic');
       buildGrid();
       renderTaskList();
+      renderTodoList();
+      renderSelfMessagePanel();
+      updateSelfMessageBanner();
       scheduleAllNotifications();
+
       alert('✅ 復元しました');
-    } catch(err){
+    } catch(err) {
       alert('❌ ファイルが正しくありません。Roundayのバックアップファイルを選択してください。');
     }
   };
+
   reader.readAsText(file);
 }
 
