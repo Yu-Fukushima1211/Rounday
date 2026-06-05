@@ -1898,6 +1898,144 @@ function clearNotificationTimers(timerList) {
   return [];
 }
 
+// ── 操作ロジック整理ヘルパー ──
+// ※仕様変更なし。配列操作・ID発行・保存後処理の入口を作り、Expo移行時に移しやすくする。
+function commitScheduleChange(options = {}) {
+  const {
+    render = true,
+    notifications = false,
+    todo = false,
+    task = false,
+    self = false,
+    banner = false,
+  } = options;
+
+  saveAll();
+
+  if (render) renderEvents();
+  if (notifications) scheduleAllNotifications();
+  if (todo) renderTodoList();
+  if (task) renderTaskList();
+  if (self) renderSelfMessagePanel();
+  if (banner) updateSelfMessageBanner();
+}
+
+function issueEventId() {
+  return nextEvId++;
+}
+
+function addEventData(eventData) {
+  events.push(eventData);
+  return eventData;
+}
+
+function replaceEventData(eventId, eventData) {
+  const idx = events.findIndex(ev => ev.id === eventId);
+  if (idx === -1) return null;
+  events[idx] = eventData;
+  return events[idx];
+}
+
+function updateEventData(eventId, updater) {
+  const idx = events.findIndex(ev => ev.id === eventId);
+  if (idx === -1) return null;
+
+  const current = events[idx];
+  const patch = typeof updater === 'function' ? updater(current) : updater;
+  events[idx] = { ...current, ...patch };
+  return events[idx];
+}
+
+function removeEventData(eventId) {
+  const before = events.length;
+  events = events.filter(ev => ev.id !== eventId);
+  return events.length !== before;
+}
+
+function unlinkTodosFromEvent(eventId) {
+  todos = todos.map(todo => (
+    todo.scheduledEventId === eventId
+      ? { ...todo, scheduledEventId: null }
+      : todo
+  ));
+}
+
+function issueTodoId() {
+  return nextTodoId++;
+}
+
+function addTodoData(todoData) {
+  todos.push(todoData);
+  return todoData;
+}
+
+function replaceTodoData(todoId, todoData) {
+  const idx = todos.findIndex(todo => todo.id === todoId);
+  if (idx === -1) return null;
+  todos[idx] = todoData;
+  return todos[idx];
+}
+
+function updateTodoData(todoId, updater) {
+  const idx = todos.findIndex(todo => todo.id === todoId);
+  if (idx === -1) return null;
+
+  const current = todos[idx];
+  const patch = typeof updater === 'function' ? updater(current) : updater;
+  todos[idx] = { ...current, ...patch };
+  return todos[idx];
+}
+
+function removeTodoData(todoId) {
+  const before = todos.length;
+  todos = todos.filter(todo => todo.id !== todoId);
+  return todos.length !== before;
+}
+
+function removeCompletedTodoData() {
+  const before = todos.length;
+  todos = todos.filter(todo => !todo.done);
+  return todos.length !== before;
+}
+
+function cleanupExpiredCompletedTodos(cutoffDate) {
+  const before = todos.length;
+  todos = todos.filter(todo => !(todo.done && todo.doneAt && new Date(todo.doneAt) < cutoffDate));
+  return todos.length !== before;
+}
+
+function issueReminderId() {
+  return nextTId++;
+}
+
+function addReminderData(taskData) {
+  tasks.push(taskData);
+  return taskData;
+}
+
+function replaceReminderData(taskId, taskData) {
+  const idx = tasks.findIndex(task => task.id === taskId);
+  if (idx === -1) return null;
+  tasks[idx] = taskData;
+  return tasks[idx];
+}
+
+function updateReminderData(taskId, updater) {
+  const idx = tasks.findIndex(task => task.id === taskId);
+  if (idx === -1) return null;
+
+  const current = tasks[idx];
+  const patch = typeof updater === 'function' ? updater(current) : updater;
+  tasks[idx] = { ...current, ...patch };
+  return tasks[idx];
+}
+
+function removeReminderData(taskId) {
+  const before = tasks.length;
+  tasks = tasks.filter(task => task.id !== taskId);
+  return tasks.length !== before;
+}
+
 function hexToRgb(h){ return {r:parseInt(h.slice(1,3),16),g:parseInt(h.slice(3,5),16),b:parseInt(h.slice(5,7),16)}; }
 function textColor(h){ const {r,g,b}=hexToRgb(h); return (r*299+g*587+b*114)/1000>128?'#111110':'#ffffff'; }
 function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -2460,16 +2598,22 @@ document.getElementById('modalSave').addEventListener('click',()=>{
   
   // fromTodoIdを付与（TODOから予定化した場合）
   if(pendingFromTodoId !== null) obj.fromTodoId = pendingFromTodoId;
-  if(modalMode==='create'){ obj.id=nextEvId++; events.push(obj); }
-  else { const idx=events.findIndex(e=>e.id===editId); if(idx!==-1){ obj.id=editId; events[idx]=obj; } }
-  saveAll(); closeModal(); renderEvents(); scheduleAllNotifications(); renderSelfMessagePanel(); updateSelfMessageBanner();
-  // TODOのscheduledEventIdを更新
+  if(modalMode==='create'){
+    obj.id = issueEventId();
+    addEventData(obj);
+  } else {
+    obj.id = editId;
+    replaceEventData(editId, obj);
+  }
+
   if(pendingFromTodoId !== null) {
-    const tIdx = todos.findIndex(t => t.id === pendingFromTodoId);
-    if(tIdx !== -1) todos[tIdx].scheduledEventId = obj.id;
+    updateTodoData(pendingFromTodoId, { scheduledEventId: obj.id });
     pendingFromTodoId = null;
-    saveAll();
-    renderTodoList();
+    closeModal();
+    commitScheduleChange({ notifications: true, todo: true, self: true, banner: true });
+  } else {
+    closeModal();
+    commitScheduleChange({ notifications: true, self: true, banner: true });
   }
 });
 
@@ -2559,18 +2703,24 @@ document.getElementById('dayMemoOverlay').addEventListener('click',e=>{ if(e.tar
 
 document.getElementById('dayMemoSave').addEventListener('click',()=>{
   const text = document.getElementById('fDayMemo').value.trim();
-  const idx = events.findIndex(e=>e.id===dayMemoTargetId);
-  if(idx===-1) return;
-  if(!events[idx].dayMemos) events[idx].dayMemos={};
-  events[idx].dayMemos[dayMemoTargetDate] = text;
-  saveAll(); closeDayMemoModal(); renderEvents();
+  const updated = updateEventData(dayMemoTargetId, ev => ({
+    dayMemos: {
+      ...(ev.dayMemos || {}),
+      [dayMemoTargetDate]: text
+    }
+  }));
+  if(!updated) return;
+  closeDayMemoModal();
+  commitScheduleChange();
 });
 
 document.getElementById('dayMemoClear').addEventListener('click',()=>{
-  const idx = events.findIndex(e=>e.id===dayMemoTargetId);
-  if(idx!==-1 && events[idx].dayMemos){
-    delete events[idx].dayMemos[dayMemoTargetDate];
-    saveAll(); renderEvents();
+  const ev = events.find(e => e.id === dayMemoTargetId);
+  if(ev && ev.dayMemos){
+    const nextDayMemos = { ...ev.dayMemos };
+    delete nextDayMemos[dayMemoTargetDate];
+    updateEventData(dayMemoTargetId, { dayMemos: nextDayMemos });
+    commitScheduleChange();
   }
   closeDayMemoModal();
 });
@@ -2579,9 +2729,9 @@ document.getElementById('ctxDelete').addEventListener('click',()=>{
   closeCtx();
   const ev = events.find(e=>e.id===ctxTargetId);
   if(!ev || !ev.repeat || ev.repeat.type==='none'){
-  todos.forEach((t, i) => { if(t.scheduledEventId === ctxTargetId) todos[i].scheduledEventId = null; });
-  events = events.filter(e=>e.id!==ctxTargetId);
-  saveAll(); renderEvents();
+  unlinkTodosFromEvent(ctxTargetId);
+  removeEventData(ctxTargetId);
+  commitScheduleChange();
   return;
 }
   // 繰り返しあり → モーダル表示
@@ -2605,10 +2755,10 @@ document.getElementById('deleteRepeatOverlay').addEventListener('click',e=>{
 document.getElementById('deleteRepeatOne').addEventListener('click',()=>{
   const dk = getCtxDateKey();
   if(dk){
-    const idx = events.findIndex(e=>e.id===ctxTargetId);
-    if(!events[idx].excludeDates) events[idx].excludeDates=[];
-    events[idx].excludeDates.push(dk);
-    saveAll(); renderEvents();
+    updateEventData(ctxTargetId, ev => ({
+      excludeDates: [...(ev.excludeDates || []), dk]
+    }));
+    commitScheduleChange();
   }
   document.getElementById('deleteRepeatOverlay').classList.remove('open');
 });
@@ -2617,22 +2767,27 @@ document.getElementById('deleteRepeatOne').addEventListener('click',()=>{
 document.getElementById('deleteRepeatAfter').addEventListener('click',()=>{
   const dk = getCtxDateKey();
   if(dk){
-    const idx = events.findIndex(e=>e.id===ctxTargetId);
+    const ev = events.find(e => e.id === ctxTargetId);
     const prevDay = dateKey(addDays(new Date(dk+'T00:00:00'),-1));
-    if(prevDay < events[idx].repeat.from){
-      events = events.filter(e=>e.id!==ctxTargetId);
-    } else {
-      events[idx].repeat.to = prevDay;
+    if(ev && prevDay < ev.repeat.from){
+      removeEventData(ctxTargetId);
+    } else if(ev) {
+      updateEventData(ctxTargetId, {
+        repeat: {
+          ...ev.repeat,
+          to: prevDay
+        }
+      });
     }
-    saveAll(); renderEvents();
+    commitScheduleChange();
   }
   document.getElementById('deleteRepeatOverlay').classList.remove('open');
 });
 
 // すべて削除
 document.getElementById('deleteRepeatAll').addEventListener('click',()=>{
-  events = events.filter(e=>e.id!==ctxTargetId);
-  saveAll(); renderEvents();
+  removeEventData(ctxTargetId);
+  commitScheduleChange();
   document.getElementById('deleteRepeatOverlay').classList.remove('open');
 });
 document.getElementById('ctxClose').addEventListener('click', e => {
@@ -3267,9 +3422,7 @@ function scheduleSelfMessageSnoozeNotifications() {
 function renderTodoList(){
   // 7日以上経過した完了済みを自動削除
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const before = todos.length;
-  todos = todos.filter(t => !(t.done && t.doneAt && new Date(t.doneAt) < cutoff));
-  if(todos.length !== before) saveAll();
+  if(cleanupExpiredCompletedTodos(cutoff)) saveAll();
 
   const list = document.getElementById('todoList');
   list.innerHTML = '';
@@ -3302,7 +3455,7 @@ function renderTodoList(){
     clearBtn.className = 'todo-done-clear';
     clearBtn.textContent = '完了済みをすべて削除';
     clearBtn.addEventListener('click', () => {
-      todos = todos.filter(t => !t.done);
+      removeCompletedTodoData();
       saveAll(); renderTodoList();
     });
     doneList.appendChild(clearBtn);
@@ -3344,17 +3497,15 @@ function makeTodoCard(t, isDone){
     const idx = todos.findIndex(tk => tk.id === t.id);
     if(idx === -1) return;
     if(isDone){
-      todos[idx].done = false;
-      delete todos[idx].doneAt;
+      updateTodoData(t.id, { done: false, doneAt: null });
     } else {
-      todos[idx].done = true;
-      todos[idx].doneAt = new Date().toISOString();
+      updateTodoData(t.id, { done: true, doneAt: new Date().toISOString() });
     }
     saveAll(); renderTodoList();
   });
   // 削除ボタン
   card.querySelector('.todo-card-del').addEventListener('click', () => {
-    todos = todos.filter(tk => tk.id !== t.id);
+    removeTodoData(t.id);
     saveAll(); renderTodoList();
   });
   // 予定に追加ボタン
@@ -3460,8 +3611,13 @@ document.getElementById('todoModalSave').addEventListener('click', () => {
     originEventDateKey: pendingTodoOriginDateKey,
     scheduledEventId: todoModalMode === 'edit' ? (todos.find(t => t.id === editTodoId)?.scheduledEventId ?? null) : null,
   };
-  if(todoModalMode === 'create'){ obj.id = nextTodoId++; todos.push(obj); }
-  else { const idx = todos.findIndex(t => t.id === editTodoId); if(idx !== -1){ obj.id = editTodoId; todos[idx] = obj; } }
+  if(todoModalMode === 'create'){
+    obj.id = issueTodoId();
+    addTodoData(obj);
+  } else {
+    obj.id = editTodoId;
+    replaceTodoData(editTodoId, obj);
+  }
   pendingTodoOriginDateKey = null;
   saveAll(); closeTodoModal(); renderTodoList();
 });
@@ -3586,12 +3742,13 @@ function makeTaskCard(t, isDone){
     if(idx === -1) return;
 
     if(isDone){
-      tasks[idx].done = false;
-      tasks[idx].doneAt = null;
+      updateReminderData(t.id, { done: false, doneAt: null });
     } else {
-      tasks[idx].done = true;
-      tasks[idx].doneAt = new Date().toISOString();
-      tasks[idx].snoozedUntil = null;
+      updateReminderData(t.id, {
+        done: true,
+        doneAt: new Date().toISOString(),
+        snoozedUntil: null
+      });
     }
 
     saveAll();
@@ -3600,7 +3757,7 @@ function makeTaskCard(t, isDone){
   });
 
   card.querySelector('.task-del-btn').addEventListener('click', () => {
-    tasks = tasks.filter(tk => tk.id !== t.id);
+    removeReminderData(t.id);
     saveAll();
     renderTaskList();
     scheduleAllNotifications();
@@ -3723,9 +3880,11 @@ function applyReminderSnooze() {
     return;
   }
 
-  tasks[idx].done = false;
-  tasks[idx].doneAt = null;
-  tasks[idx].snoozedUntil = until.toISOString();
+  updateReminderData(reminderSnoozeTargetId, {
+    done: false,
+    doneAt: null,
+    snoozedUntil: until.toISOString()
+  });
 
   const type = document.getElementById('reminderSnoozeType').value;
   const hours = Math.max(1, Number(document.getElementById('reminderSnoozeHours').value) || 3);
@@ -3850,8 +4009,13 @@ const obj = {
     ? (existingTask.snoozedUntil || null)
     : null,
 };
-    if(taskModalMode==='create'){ obj.id=nextTId++; tasks.push(obj); }
-    else { const idx=tasks.findIndex(t=>t.id===editTaskId); if(idx!==-1){ obj.id=editTaskId; tasks[idx]=obj; } }
+    if(taskModalMode==='create'){
+      obj.id = issueReminderId();
+      addReminderData(obj);
+    } else {
+      obj.id = editTaskId;
+      replaceReminderData(editTaskId, obj);
+    }
     saveAll();
     closeTaskModal();
     renderTaskList();
