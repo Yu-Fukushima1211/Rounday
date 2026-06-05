@@ -1420,41 +1420,343 @@ const COLORS = [
 ];
 const DOW = ['日','月','火','水','木','金','土'];
 
+// ══════════════════════════════════════════
+//  データ正規化
+//  ※仕様変更なし。localStorageから読んだデータを、内部で安全に扱える形へ揃えるだけ。
+// ══════════════════════════════════════════
+
+function normalizeData(raw) {
+  const rawEvents = Array.isArray(raw?.events) ? raw.events : [];
+  const rawTasks = Array.isArray(raw?.tasks) ? raw.tasks : [];
+  const rawTodos = Array.isArray(raw?.todos) ? raw.todos : [];
+
+  const normalizedEvents = normalizeEvents(rawEvents);
+  const normalizedTasks = normalizeTasks(rawTasks);
+  const normalizedTodos = normalizeTodos(rawTodos);
+
+  return {
+    version: 4,
+    events: normalizedEvents,
+    tasks: normalizedTasks,
+    todos: normalizedTodos,
+    settings: normalizeSettings(raw?.settings),
+    nextEvId: normalizeNextId(raw?.nextEvId, normalizedEvents),
+    nextTId: normalizeNextId(raw?.nextTId, normalizedTasks),
+    nextTodoId: normalizeNextId(raw?.nextTodoId, normalizedTodos),
+  };
+}
+
+function normalizeSettings(rawSettings) {
+  const defaults = {
+    weekStart: 0,
+    timeStart: 0,
+    timeEnd: 24,
+    theme: 'classic',
+    morningNotif: false,
+    morningNotifH: 8,
+    morningNotifM: 0,
+    selfMessageSnoozeDefault: {
+      type: 'day',
+      hours: 3
+    },
+    reminderSnoozeDefault: {
+      type: 'day',
+      hours: 3
+    }
+  };
+
+  const src = isPlainObject(rawSettings) ? rawSettings : {};
+  const normalized = {
+    ...defaults,
+    ...src,
+  };
+
+  normalized.weekStart = normalized.weekStart === 1 ? 1 : 0;
+
+  if (!Number.isFinite(Number(normalized.timeStart))) {
+    normalized.timeStart = defaults.timeStart;
+  } else {
+    normalized.timeStart = Number(normalized.timeStart);
+  }
+
+  if (!Number.isFinite(Number(normalized.timeEnd))) {
+    normalized.timeEnd = defaults.timeEnd;
+  } else {
+    normalized.timeEnd = Number(normalized.timeEnd);
+  }
+
+  if (!['classic', 'elegant', 'modern', 'warm'].includes(normalized.theme)) {
+    normalized.theme = defaults.theme;
+  }
+
+  normalized.morningNotif = !!normalized.morningNotif;
+  normalized.morningNotifH = normalizeHour(normalized.morningNotifH, defaults.morningNotifH);
+  normalized.morningNotifM = normalizeMinute(normalized.morningNotifM, defaults.morningNotifM);
+
+  normalized.selfMessageSnoozeDefault = normalizeSnoozeDefault(
+    normalized.selfMessageSnoozeDefault,
+    defaults.selfMessageSnoozeDefault
+  );
+
+  normalized.reminderSnoozeDefault = normalizeSnoozeDefault(
+    normalized.reminderSnoozeDefault,
+    defaults.reminderSnoozeDefault
+  );
+
+  return normalized;
+}
+
+function normalizeSnoozeDefault(rawDefault, fallback) {
+  const src = isPlainObject(rawDefault) ? rawDefault : {};
+  const type = ['day', 'week', 'hours', 'custom'].includes(src.type)
+    ? src.type
+    : fallback.type;
+
+  const hours = Math.max(1, Number(src.hours) || fallback.hours);
+
+  return {
+    type,
+    hours
+  };
+}
+
+function normalizeEvents(rawEvents) {
+  return rawEvents
+    .filter(isPlainObject)
+    .map(normalizeEvent)
+    .filter(Boolean);
+}
+
+function normalizeEvent(ev) {
+  const normalized = { ...ev };
+
+  normalized.id = normalizeId(normalized.id);
+  if (normalized.id == null) return null;
+
+  normalized.title = typeof normalized.title === 'string'
+    ? normalized.title
+    : String(normalized.title || '');
+
+  normalized.type = normalized.type === 'nonfocus' ? 'nonfocus' : 'focus';
+
+  normalized.color = typeof normalized.color === 'string' && normalized.color
+    ? normalized.color
+    : COLORS[0];
+
+  normalized.start = normalizeMinuteOfDay(normalized.start, 0);
+  normalized.end = normalizeMinuteOfDay(normalized.end, normalized.start + 30);
+  if (normalized.end <= normalized.start) {
+    normalized.end = normalized.start + 30;
+  }
+
+  normalized.memo = typeof normalized.memo === 'string' ? normalized.memo : '';
+
+  normalized.dateKey = typeof normalized.dateKey === 'string'
+    ? normalized.dateKey
+    : todayStr();
+
+  normalized.repeat = normalizeRepeat(normalized.repeat);
+
+  normalized.linkedGroupId =
+    normalized.linkedGroupId == null || normalized.linkedGroupId === ''
+      ? null
+      : normalized.linkedGroupId;
+
+  normalized.notification = normalizeNotification(normalized.notification);
+
+  normalized.alertTiming = typeof normalized.alertTiming === 'string'
+    ? normalized.alertTiming
+    : 'none';
+
+  normalized.alertH =
+    normalized.alertH == null
+      ? null
+      : normalizeHour(normalized.alertH, 0);
+
+  normalized.alertM =
+    normalized.alertM == null
+      ? null
+      : normalizeMinute(normalized.alertM, 0);
+
+  normalized.alertMsg = typeof normalized.alertMsg === 'string'
+    ? normalized.alertMsg
+    : '';
+
+  normalized.notifOverrides = isPlainObject(normalized.notifOverrides)
+    ? normalized.notifOverrides
+    : {};
+
+  normalized.dayMemos = isPlainObject(normalized.dayMemos)
+    ? normalized.dayMemos
+    : {};
+
+  normalized.excludeDates = Array.isArray(normalized.excludeDates)
+    ? normalized.excludeDates.filter(d => typeof d === 'string')
+    : [];
+
+  return normalized;
+}
+
+function normalizeRepeat(rawRepeat) {
+  const src = isPlainObject(rawRepeat) ? rawRepeat : { type: 'none' };
+  const type = ['none', 'weekly', 'nweekly', 'monthly_dow'].includes(src.type)
+    ? src.type
+    : 'none';
+
+  const normalized = {
+    ...src,
+    type
+  };
+
+  if (type === 'none') {
+    return { type: 'none' };
+  }
+
+  normalized.weekdays = Array.isArray(src.weekdays)
+    ? src.weekdays.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6)
+    : [];
+
+  normalized.interval = Math.max(1, Number(src.interval) || 1);
+
+  normalized.monthWeeks = Array.isArray(src.monthWeeks)
+    ? src.monthWeeks.map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 5)
+    : [];
+
+  if (src.monthWeek != null && normalized.monthWeeks.length === 0) {
+    const mw = Number(src.monthWeek);
+    if (Number.isInteger(mw) && mw >= 1 && mw <= 5) {
+      normalized.monthWeeks = [mw];
+    }
+  }
+
+  normalized.monthDow =
+    src.monthDow == null
+      ? 0
+      : Math.min(6, Math.max(0, Number(src.monthDow) || 0));
+
+  normalized.from = typeof src.from === 'string' ? src.from : '';
+  normalized.to = typeof src.to === 'string' ? src.to : '';
+
+  return normalized;
+}
+
+function normalizeNotification(rawNotification) {
+  const src = isPlainObject(rawNotification) ? rawNotification : {};
+
+  const normalized = {
+    ...src,
+    enabled: !!src.enabled,
+    notifH: src.notifH == null ? null : normalizeHour(src.notifH, null),
+    notifM: src.notifM == null ? null : normalizeMinute(src.notifM, 0),
+    message: typeof src.message === 'string' ? src.message : '',
+    statusByDate: normalizeSelfMessageStatusByDate(src.statusByDate)
+  };
+
+  return normalized;
+}
+
+function normalizeSelfMessageStatusByDate(rawStatusByDate) {
+  if (!isPlainObject(rawStatusByDate)) return {};
+
+  const result = {};
+
+  Object.keys(rawStatusByDate).forEach(dk => {
+    const src = isPlainObject(rawStatusByDate[dk])
+      ? rawStatusByDate[dk]
+      : {};
+
+    result[dk] = {
+      done: !!src.done,
+      doneAt: src.doneAt || null,
+      bannerDismissedAt: src.bannerDismissedAt || null,
+      snoozedUntil: src.snoozedUntil || null,
+    };
+  });
+
+  return result;
+}
+
+function normalizeTasks(rawTasks) {
+  return rawTasks
+    .filter(isPlainObject)
+    .map(task => ({ ...task }))
+    .filter(task => normalizeId(task.id) != null);
+}
+
+function normalizeTodos(rawTodos) {
+  return rawTodos
+    .filter(isPlainObject)
+    .map(todo => ({ ...todo }))
+    .filter(todo => normalizeId(todo.id) != null);
+}
+
+function normalizeNextId(rawNextId, items) {
+  const loaded = Number(rawNextId);
+  if (Number.isInteger(loaded) && loaded >= 1) {
+    return loaded;
+  }
+
+  const maxId = items.reduce((max, item) => {
+    const id = normalizeId(item.id);
+    return id == null ? max : Math.max(max, id);
+  }, 0);
+
+  return maxId + 1;
+}
+
+function normalizeId(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+function normalizeHour(value, fallback) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 23) return fallback;
+  return n;
+}
+
+function normalizeMinute(value, fallback) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 59) return fallback;
+  return n;
+}
+
+function normalizeMinuteOfDay(value, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(24 * 60, Math.round(n)));
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 let numDays = window.innerWidth < 480 ? 1 : 3;
 let anchorDate = stripTime(new Date());
-let events = load('tos-events2') || [];
-let tasks = load('tos-tasks') || [];
-let nextEvId = load('tos-eid') || 1;
-let nextTId = load('tos-tid') || 1;
-// ── 設定 ──
-let settings = load('rounday-settings') || {
-  weekStart: 0,
-  timeStart: 0,
-  timeEnd: 24,
-  theme: 'classic',
-  morningNotif: false,
-  morningNotifH: 8,
-  morningNotifM: 0
-};
 
+// ── データ読み込み ──
+// ※保存キーは変更しない。読み込み直後に内部データだけ正規化する。
+const appData = normalizeData({
+  events: load('tos-events2'),
+  tasks: load('tos-tasks'),
+  todos: load('rounday-todos'),
+  settings: load('rounday-settings'),
+  nextEvId: load('tos-eid'),
+  nextTId: load('tos-tid'),
+  nextTodoId: load('rounday-next-tid'),
+});
+
+let events = appData.events;
+let tasks = appData.tasks;
+let todos = appData.todos;
+let settings = appData.settings;
+let nextEvId = appData.nextEvId;
+let nextTId = appData.nextTId;
+let nextTodoId = appData.nextTodoId;
+
+// ── 設定 ──
 function saveSettings() {
   save('rounday-settings', settings);
-}
-
-if (!settings.selfMessageSnoozeDefault) {
-  settings.selfMessageSnoozeDefault = {
-    type: 'day',
-    hours: 3
-  };
-  saveSettings();
-}
-
-if (!settings.reminderSnoozeDefault) {
-  settings.reminderSnoozeDefault = {
-    type: 'day',
-    hours: 3
-  };
-  saveSettings();
 }
 
 
@@ -1469,8 +1771,6 @@ let ctxTargetId = null;
 let dragDay = null, dragStartY = 0, dragEl = null, isDragging = false;
 
 // ── TODO機能 ──
-let todos = load('rounday-todos') || [];
-let nextTodoId = load('rounday-next-tid') || 1;
 let todoModalMode = 'create';
 let editTodoId = null;
 let pendingTodoOriginDateKey = null; // コンテキストメニューから開いた時の日付
