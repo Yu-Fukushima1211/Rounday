@@ -2068,10 +2068,13 @@ function populateNotifTimeSelects(hId, mId) {
 }
 
 function populateTimeSelects(){
-  ['fSh','fEh'].forEach(id=>{
-    const sel=document.getElementById(id); sel.innerHTML='';
-    for(let h=0;h<24;h++){ const o=document.createElement('option'); o.value=h; o.textContent=String(h).padStart(2,'0')+'時'; sel.appendChild(o); }
-  });
+  // 予定の開始時刻は0〜23時、終了時刻は24:00まで選べるようにする
+  const sh=document.getElementById('fSh'); sh.innerHTML='';
+  for(let h=0;h<24;h++){ const o=document.createElement('option'); o.value=h; o.textContent=String(h).padStart(2,'0')+'時'; sh.appendChild(o); }
+
+  const eh=document.getElementById('fEh'); eh.innerHTML='';
+  for(let h=0;h<=24;h++){ const o=document.createElement('option'); o.value=h; o.textContent=String(h).padStart(2,'0')+'時'; eh.appendChild(o); }
+
   ['fSm','fEm'].forEach(id=>{
     const sel=document.getElementById(id); sel.innerHTML='';
     for(let m=0;m<60;m+=5){ const o=document.createElement('option'); o.value=m; o.textContent=String(m).padStart(2,'0')+'分'; sel.appendChild(o); }
@@ -2090,7 +2093,22 @@ function populateTimeSelects(){
   const tdM = document.getElementById('tdMin'); tdM.innerHTML = '';
   for(let m=0;m<60;m+=5){ const o=document.createElement('option'); o.value=m; o.textContent=String(m).padStart(2,'0')+'分'; tdM.appendChild(o); }
 }
+
+function syncEndMinuteFor24(){
+  const endHour = document.getElementById('fEh');
+  const endMinute = document.getElementById('fEm');
+  if(!endHour || !endMinute) return;
+
+  if(Number(endHour.value) === 24){
+    endMinute.value = 0;
+    endMinute.disabled = true;
+  } else {
+    endMinute.disabled = false;
+  }
+}
 populateTimeSelects();
+document.getElementById('fEh').addEventListener('change', syncEndMinuteFor24);
+syncEndMinuteFor24();
 // 通知タイミング用セレクト初期化
 populateNotifTimeSelects('fAlertH','fAlertM');
 // 自分へのメッセージ再通知カスタム時刻
@@ -2516,7 +2534,11 @@ function setColor(c){
   });
 }
 function hexToRgbStr(h){ const {r,g,b}=hexToRgb(h); return `rgb(${r}, ${g}, ${b})`; }
-function setSelTime(selH,selM,min){ document.getElementById(selH).value=Math.floor(min/60); document.getElementById(selM).value=Math.round((min%60)/5)*5; }
+function setSelTime(selH,selM,min){
+  document.getElementById(selH).value=Math.floor(min/60);
+  document.getElementById(selM).value=Math.round((min%60)/5)*5;
+  if(selH === 'fEh') syncEndMinuteFor24();
+}
 
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
 document.getElementById('modalClose').addEventListener('click',closeModal);
