@@ -661,6 +661,79 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
   border-radius: var(--radius-btn); padding: 4px 10px;
   cursor: pointer; font-family: 'DM Mono', monospace; font-size: 10px;
 }
+
+/* 予定詳細パネル */
+#evDetailPanel {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.22);
+  z-index: 500;
+  align-items: flex-end;
+  justify-content: center;
+}
+#evDetailPanel.open { display: flex; animation: fadeIn 0.15s ease; }
+.ev-detail-sheet {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  width: min(480px, 100vw);
+  border-radius: var(--radius-btn) var(--radius-btn) 0 0;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+  padding: 20px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.ev-detail-title {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.ev-detail-time {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.ev-detail-memo {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+.ev-detail-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.ev-detail-btn {
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  background: none;
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  transition: background 0.1s;
+}
+.ev-detail-btn:hover { background: var(--border); }
+.ev-detail-btn.danger { color: #c0392b; }
+.ev-detail-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--text-muted);
+}
+
 </style>
 </head>
 <body>
@@ -1212,6 +1285,24 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
       <button class="btn" id="deleteRepeatOne" style="width:100%; text-align:center;">この日だけ削除</button>
       <button class="btn" id="deleteRepeatAfter" style="width:100%; text-align:center;">この日以降をすべて削除</button>
       <button class="btn danger" id="deleteRepeatAll" style="width:100%; text-align:center; color:#c0392b;">すべて削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- EV DETAIL PANEL -->
+<div id="evDetailPanel">
+  <div class="ev-detail-sheet" style="position:relative;">
+    <button class="ev-detail-close" id="evDetailClose">×</button>
+    <div class="ev-detail-title" id="evDetailTitle"></div>
+    <div class="ev-detail-time" id="evDetailTime"></div>
+    <div class="ev-detail-memo" id="evDetailMemo"></div>
+    <div class="ev-detail-btns">
+      <button class="ev-detail-btn" id="evDetailEdit">✏ 編集</button>
+      <button class="ev-detail-btn" id="evDetailDayMemo">🗒 この日だけメモ</button>
+      <button class="ev-detail-btn" id="evDetailNextOcc">📅 次回を確認</button>
+      <button class="ev-detail-btn" id="evDetailAddTask">🔔 リマインダーを追加</button>
+      <button class="ev-detail-btn" id="evDetailAddTodo" style="display:none;">📝 TODOを追加</button>
+      <button class="ev-detail-btn danger" id="evDetailDelete">✕ 削除</button>
     </div>
   </div>
 </div>
@@ -2340,7 +2431,7 @@ function renderFocusEv(ev,col){
   div.style.top=topPx+'px'; div.style.height=hPx+'px'; div.style.background=ev.color; div.style.color=textColor(ev.color);
   const inner=document.createElement('div'); inner.className='ev-focus-inner';
   inner.innerHTML=`<div class="ev-title">${esc(ev.title)}</div>`;
-  if(hPx>28) inner.innerHTML+=`<div class="ev-time-label">${minToTime(ev.start)}〜${minToTime(ev.end)}</div>`;
+  if(hPx>28 && numDays<=4) inner.innerHTML+=`<div class="ev-time-label">${minToTime(ev.start)}〜${minToTime(ev.end)}</div>`;
   const dayMemo = ev.dayMemos?.[ev.dateKey];
 if(dayMemo && hPx>44) inner.innerHTML+=`<div class="ev-memo">🗒 ${esc(dayMemo)}</div>`;
 else if(ev.memo && hPx>44) inner.innerHTML+=`<div class="ev-memo">📌 ${esc(ev.memo)}</div>`;
@@ -2356,14 +2447,14 @@ function renderNonfocusEv(ev,col){
   const evId=ev._baseId||ev.id;
   const bar=document.createElement('div'); bar.className='ev-nonfocus-bar'; bar.dataset.evId=evId;
   bar.style.top=topPx+'px'; bar.style.height=hPx+'px'; bar.style.background=ev.color;
-  bar.addEventListener('click',e=>{ e.stopPropagation(); openCtx(evId,e.clientX,e.clientY); });
-  bar.addEventListener('touchend',e=>{ e.stopPropagation(); e.preventDefault(); const t=e.changedTouches[0]; openCtx(evId,t.clientX,t.clientY); },{passive:false});
+  bar.addEventListener('click',e=>{ e.stopPropagation(); openCtx(ev._baseId||ev.id, e.clientX, e.clientY, ev.dateKey); });
+  bar.addEventListener('touchend',e=>{ e.stopPropagation(); e.preventDefault(); const t=e.changedTouches[0]; openCtx(ev._baseId||ev.id, e.clientX, e.clientY, ev.dateKey); },{passive:false});
   const lbl=document.createElement('div'); lbl.className='ev-nonfocus-label'; lbl.dataset.evId=evId;
   lbl.style.top=topPx+'px'; lbl.style.height=hPx+'px';
   const txt=document.createElement('div'); txt.className='ev-nonfocus-text'; txt.textContent=ev.title;
   lbl.appendChild(txt);
-  lbl.addEventListener('click',e=>{ e.stopPropagation(); openCtx(evId,e.clientX,e.clientY); });
-  lbl.addEventListener('touchend',e=>{ e.stopPropagation(); e.preventDefault(); const t=e.changedTouches[0]; openCtx(evId,t.clientX,t.clientY); },{passive:false});
+  lbl.addEventListener('click',e=>{ e.stopPropagation(); openCtx(ev._baseId||ev.id, e.clientX, e.clientY, ev.dateKey); });
+  lbl.addEventListener('touchend',e=>{ e.stopPropagation(); e.preventDefault(); const t=e.changedTouches[0]; openCtx(ev._baseId||ev.id, t.clientX, t.clientY, ev.dateKey); },{passive:false});
   col.appendChild(bar); col.appendChild(lbl);
 }
 
@@ -2651,36 +2742,98 @@ function openNotifEditFromCtx(evId){
 }
 
 // ── コンテキストメニュー ──
-function openCtx(id, x, y){
+function openCtx(id, x, y, dk){
   ctxTargetId = id;
-  // TODO「タスクを追加」：予定の開始時刻を過ぎている場合のみ表示
   const ev = events.find(e => e.id === id);
-  const todoItem = document.getElementById('ctxAddTodo');
-  if(ev) {
-    const evEl = document.querySelector(`[data-ev-id="${id}"]`);
-    const dk = evEl?.closest('.day-col')?.dataset.dateKey;
-    if(dk) {
-      const startH = String(Math.floor(ev.start / 60)).padStart(2, '0');
-      const startM = String(ev.start % 60).padStart(2, '0');
-      const evStartDt = new Date(`${dk}T${startH}:${startM}:00`);
-      todoItem.style.display = evStartDt <= new Date() ? '' : 'none';
-    } else {
-      todoItem.style.display = 'none';
-    }
+  if(!ev) return;
+
+  // 詳細パネルを開く
+  const visEv = allVisibleEvents().find(e => (e._baseId||e.id) === id && e.dateKey === dk) || ev;
+  const memo = visEv.dayMemos?.[dk] || ev.memo || '';
+
+  document.getElementById('evDetailTitle').textContent = ev.title;
+  document.getElementById('evDetailTime').textContent = minToTime(ev.start) + '〜' + minToTime(ev.end);
+
+  const memoEl = document.getElementById('evDetailMemo');
+  if(memo){
+    memoEl.textContent = memo;
+    memoEl.style.display = '';
   } else {
-    todoItem.style.display = 'none';
+    memoEl.style.display = 'none';
   }
-  const m = document.getElementById('ctxMenu');
-  m.style.left = x + 'px'; m.style.top = y + 'px'; m.classList.add('open');
-  // はみ出し補正
-  const rect = m.getBoundingClientRect();
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  if(rect.right > vw) m.style.left = (x - rect.width)+'px';
-  if(rect.bottom > vh) m.style.top = (y - rect.height)+'px';
+
+  // TODOボタンの表示制御
+  const evEl = document.querySelector(`[data-ev-id="${id}"]`);
+  const evDk = dk || evEl?.closest('.day-col')?.dataset.dateKey;
+  const todoBtn = document.getElementById('evDetailAddTodo');
+  if(evDk){
+    const startH = String(Math.floor(ev.start/60)).padStart(2,'0');
+    const startM = String(ev.start%60).padStart(2,'0');
+    const evStartDt = new Date(`${evDk}T${startH}:${startM}:00`);
+    todoBtn.style.display = evStartDt <= new Date() ? '' : 'none';
+  } else {
+    todoBtn.style.display = 'none';
+  }
+
+  document.getElementById('evDetailPanel').classList.add('open');
 }
 
 function closeCtx(){ document.getElementById('ctxMenu').classList.remove('open'); }
+
+// 詳細パネルのボタン
+document.getElementById('evDetailClose').addEventListener('click', () => {
+  document.getElementById('evDetailPanel').classList.remove('open');
+});
+document.getElementById('evDetailPanel').addEventListener('click', e => {
+  if(e.target.id === 'evDetailPanel')
+    document.getElementById('evDetailPanel').classList.remove('open');
+});
+document.getElementById('evDetailEdit').addEventListener('click', () => {
+  document.getElementById('evDetailPanel').classList.remove('open');
+  openEditModal(ctxTargetId);
+});
+document.getElementById('evDetailDayMemo').addEventListener('click', () => {
+  document.getElementById('evDetailPanel').classList.remove('open');
+  const evEl = document.querySelector(`[data-ev-id="${ctxTargetId}"]`);
+  const dk = evEl?.closest('.day-col')?.dataset.dateKey;
+  dayMemoTargetId = ctxTargetId;
+  dayMemoTargetDate = dk;
+  const ev = events.find(e => e.id === ctxTargetId);
+  document.getElementById('dayMemoTitle').textContent = `この日だけメモ（${dk}）`;
+  document.getElementById('fDayMemo').value = ev?.dayMemos?.[dk] || '';
+  document.getElementById('dayMemoOverlay').classList.add('open');
+});
+document.getElementById('evDetailNextOcc').addEventListener('click', () => {
+  document.getElementById('evDetailPanel').classList.remove('open');
+  const ev = events.find(e => e.id === ctxTargetId); if(!ev) return;
+  const gid = ev.linkedGroupId || ev.id;
+  const group = allVisibleEvents().filter(e => (e.linkedGroupId||e._baseId||e.id)===gid||(e.linkedGroupId||e.id)===gid);
+  const today = todayStr();
+  const future = group.filter(e => e.dateKey > today).sort((a,b) => a.dateKey.localeCompare(b.dateKey)||a.start-b.start);
+  if(future.length === 0){ alert('この予定の次回はありません。'); }
+  else { const n = future[0]; alert(`次回：${n.dateKey}（${DOW[new Date(n.dateKey+'T00:00:00').getDay()]}）${minToTime(n.start)}〜${minToTime(n.end)}`); }
+});
+document.getElementById('evDetailAddTask').addEventListener('click', () => {
+  document.getElementById('evDetailPanel').classList.remove('open');
+  openTaskModal(null, ctxTargetId);
+});
+document.getElementById('evDetailAddTodo').addEventListener('click', () => {
+  document.getElementById('evDetailPanel').classList.remove('open');
+  const evEl = document.querySelector(`[data-ev-id="${ctxTargetId}"]`);
+  const dk = evEl?.closest('.day-col')?.dataset.dateKey;
+  openTodoModal(null, ctxTargetId, dk);
+});
+document.getElementById('evDetailDelete').addEventListener('click', () => {
+  document.getElementById('evDetailPanel').classList.remove('open');
+  const ev = events.find(e => e.id === ctxTargetId);
+  if(!ev || !ev.repeat || ev.repeat.type === 'none'){
+    unlinkTodosFromEvent(ctxTargetId);
+    removeEventData(ctxTargetId);
+    commitScheduleChange();
+    return;
+  }
+  document.getElementById('deleteRepeatOverlay').classList.add('open');
+});
 
 document.getElementById('ctxEdit').addEventListener('click',()=>{ closeCtx(); openEditModal(ctxTargetId); });
 
