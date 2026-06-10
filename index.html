@@ -734,6 +734,44 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
   color: var(--text-muted);
 }
 
+/* TODO進捗バー */
+.todo-progress-wrap {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.todo-progress-bar-bg {
+  width: 100%;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.todo-progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--text);
+  transition: width 0.2s ease;
+}
+.todo-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.todo-progress-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 28px;
+}
+.todo-progress-slider {
+  flex: 1;
+  accent-color: var(--text);
+  cursor: pointer;
+  height: 3px;
+}
+
 </style>
 </head>
 <body>
@@ -2044,11 +2082,12 @@ function removeEventData(eventId) {
 }
 
 function unlinkTodosFromEvent(eventId) {
-  todos = todos.map(todo => (
-    todo.scheduledEventId === eventId
-      ? { ...todo, scheduledEventId: null }
-      : todo
-  ));
+  todos = todos.map(todo => {
+    if (!Array.isArray(todo.scheduledEvents)) return todo;
+    const filtered = todo.scheduledEvents.filter(id => id !== eventId);
+    if (filtered.length === todo.scheduledEvents.length) return todo;
+    return { ...todo, scheduledEvents: filtered };
+  });
 }
 
 function issueTodoId() {
@@ -2720,7 +2759,12 @@ document.getElementById('modalSave').addEventListener('click',()=>{
   }
 
   if(pendingFromTodoId !== null) {
-    updateTodoData(pendingFromTodoId, { scheduledEventId: obj.id });
+    updateTodoData(pendingFromTodoId, todo => ({
+      scheduledEvents: [...(Array.isArray(todo.scheduledEvents)
+        ? todo.scheduledEvents
+        : (todo.scheduledEventId != null ? [todo.scheduledEventId] : [])),
+        obj.id]
+    }));
     pendingFromTodoId = null;
     closeModal();
     commitScheduleChange({ notifications: true, todo: true, self: true, banner: true });
@@ -2749,7 +2793,8 @@ function openCtx(id, x, y, dk){
 
   // 詳細パネルを開く
   const visEv = allVisibleEvents().find(e => (e._baseId||e.id) === id && e.dateKey === dk) || ev;
-  const memo = visEv.dayMemos?.[dk] || ev.memo || '';
+  const dayMemo = ev.dayMemos?.[dk] || '';
+  const memo = dayMemo || ev.memo || '';
 
   document.getElementById('evDetailTitle').textContent = ev.title;
   document.getElementById('evDetailTime').textContent = minToTime(ev.start) + '〜' + minToTime(ev.end);
@@ -3602,7 +3647,13 @@ function renderTodoList(){
   const list = document.getElementById('todoList');
   list.innerHTML = '';
 
-  const active = todos.filter(t => !t.done).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+  const active = todos.filter(t => !t.done).sort((a, b) => {
+    const aHas = !!a.deadline, bHas = !!b.deadline;
+    if (aHas && bHas) return new Date(a.deadline) - new Date(b.deadline);
+    if (aHas) return -1;
+    if (bHas) return 1;
+    return (a.id || 0) - (b.id || 0); // 期限なし同士は追加順（IDが小さい＝先に追加）
+  });
   const done   = todos.filter(t =>  t.done).sort((a, b) => new Date(b.doneAt)   - new Date(a.doneAt));
 
   if(active.length === 0 && done.length === 0){
@@ -3651,26 +3702,50 @@ function makeTodoCard(t, isDone){
   const card = document.createElement('div');
   card.className = 'todo-card' + (isDone ? ' done' : '');
   const originEv = t.originEventId ? events.find(e => e.id === t.originEventId) : null;
-  const dl = new Date(t.deadline);
-  const dlStr = `${dl.getMonth()+1}/${dl.getDate()} ${String(dl.getHours()).padStart(2,'0')}:${String(dl.getMinutes()).padStart(2,'0')}`;
-  const isScheduled = t.scheduledEventId != null;
+
+  // 期限表示（nullの場合は「期限なし」）
+  let dlStr = '期限なし';
+  if (t.deadline) {
+    const dl = new Date(t.deadline);
+    dlStr = `${dl.getMonth()+1}/${dl.getDate()} ${String(dl.getHours()).padStart(2,'0')}:${String(dl.getMinutes()).padStart(2,'0')}`;
+  }
+
+  // 予定追加回数（scheduledEvents配列 or 旧scheduledEventIdに対応）
+  const scheduledEvents = Array.isArray(t.scheduledEvents)
+    ? t.scheduledEvents
+    : (t.scheduledEventId != null ? [t.scheduledEventId] : []);
+  const schedCount = scheduledEvents.length;
+
+  // 進捗
+  const progress = typeof t.progress === 'number' ? t.progress : 0;
+
   card.innerHTML = `
     <div class="todo-card-top">
       <button class="todo-check-btn${isDone ? ' checked' : ''}" title="${isDone ? '未完了に戻す' : '完了にする'}" data-tid="${t.id}"></button>
       <div class="todo-card-body">
         <div class="todo-card-text">${esc(t.text)}</div>
         ${originEv ? `<div class="todo-card-origin">📅 ${esc(originEv.title)}</div>` : ''}
-        <div class="todo-card-deadline">⏰ ${dlStr}</div>
-        ${!isDone ? `<div class="todo-card-status">${isScheduled ? '✅ 予定済み' : '📌 未定'}</div>` : ''}
-        ${!isDone && !isScheduled ? `<button class="todo-schedule-btn" data-tid="${t.id}">＋ 予定に追加</button>` : ''}
+        ${t.deadline ? `<div class="todo-card-deadline">⏰ ${dlStr}</div>` : `<div class="todo-card-deadline" style="color:var(--text-faint);">期限なし</div>`}
+        ${!isDone ? `
+          <div class="todo-progress-wrap">
+            <div class="todo-progress-bar-bg">
+              <div class="todo-progress-bar-fill" style="width:${progress}%"></div>
+            </div>
+            <div class="todo-progress-row">
+              <span class="todo-progress-label">${progress}%</span>
+              <input type="range" class="todo-progress-slider" min="0" max="100" step="5" value="${progress}" data-tid="${t.id}">
+            </div>
+          </div>
+          <div class="todo-card-status">${schedCount > 0 ? `📅 予定済み（${schedCount}回）` : '📌 未定'}</div>
+          <button class="todo-schedule-btn" data-tid="${t.id}">＋ 予定に追加</button>
+        ` : ''}
       </div>
       <button class="todo-card-del" data-tid="${t.id}">✕</button>
     </div>
   `;
+
   // チェックボタン
   card.querySelector('.todo-check-btn').addEventListener('click', () => {
-    const idx = todos.findIndex(tk => tk.id === t.id);
-    if(idx === -1) return;
     if(isDone){
       updateTodoData(t.id, { done: false, doneAt: null });
     } else {
@@ -3678,17 +3753,32 @@ function makeTodoCard(t, isDone){
     }
     saveAll(); renderTodoList();
   });
+
   // 削除ボタン
   card.querySelector('.todo-card-del').addEventListener('click', () => {
     removeTodoData(t.id);
     saveAll(); renderTodoList();
   });
-  // 予定に追加ボタン
-  if(!isDone && !isScheduled){
+
+  // 進捗スライダー
+  if(!isDone){
+    card.querySelector('.todo-progress-slider').addEventListener('input', function() {
+      const val = Number(this.value);
+      // ラベルをリアルタイム更新
+      this.closest('.todo-progress-row').querySelector('.todo-progress-label').textContent = val + '%';
+      this.closest('.todo-progress-wrap').querySelector('.todo-progress-bar-fill').style.width = val + '%';
+    });
+    card.querySelector('.todo-progress-slider').addEventListener('change', function() {
+      updateTodoData(t.id, { progress: Number(this.value) });
+      saveAll();
+    });
+
+    // 予定に追加ボタン（常に表示）
     card.querySelector('.todo-schedule-btn').addEventListener('click', () => {
       startTodoScheduling(t.id);
     });
   }
+
   return card;
 }
 
