@@ -2475,8 +2475,8 @@ function renderFocusEv(ev,col){
 if(dayMemo && hPx>44) inner.innerHTML+=`<div class="ev-memo">🗒 ${esc(dayMemo)}</div>`;
 else if(ev.memo && hPx>44) inner.innerHTML+=`<div class="ev-memo">📌 ${esc(ev.memo)}</div>`;
   div.appendChild(inner);
-  div.addEventListener('click',e=>{ e.stopPropagation(); openCtx(ev._baseId||ev.id,e.clientX,e.clientY); });
-  div.addEventListener('touchend',e=>{ e.stopPropagation(); e.preventDefault(); const t=e.changedTouches[0]; openCtx(ev._baseId||ev.id,t.clientX,t.clientY); },{passive:false});
+  div.addEventListener('click',e=>{ e.stopPropagation(); openCtx(ev._baseId||ev.id,e.clientX,e.clientY,ev.dateKey); });
+div.addEventListener('touchend',e=>{ e.stopPropagation(); e.preventDefault(); const t=e.changedTouches[0]; openCtx(ev._baseId||ev.id,t.clientX,t.clientY,ev.dateKey); },{passive:false});
   col.appendChild(div);
 }
 
@@ -2487,7 +2487,7 @@ function renderNonfocusEv(ev,col){
   const bar=document.createElement('div'); bar.className='ev-nonfocus-bar'; bar.dataset.evId=evId;
   bar.style.top=topPx+'px'; bar.style.height=hPx+'px'; bar.style.background=ev.color;
   bar.addEventListener('click',e=>{ e.stopPropagation(); openCtx(ev._baseId||ev.id, e.clientX, e.clientY, ev.dateKey); });
-  bar.addEventListener('touchend',e=>{ e.stopPropagation(); e.preventDefault(); const t=e.changedTouches[0]; openCtx(ev._baseId||ev.id, e.clientX, e.clientY, ev.dateKey); },{passive:false});
+  bar.addEventListener('touchend',e=>{ e.stopPropagation(); e.preventDefault(); const t=e.changedTouches[0]; openCtx(ev._baseId||ev.id, t.clientX, t.clientY, ev.dateKey); },{passive:false});
   const lbl=document.createElement('div'); lbl.className='ev-nonfocus-label'; lbl.dataset.evId=evId;
   lbl.style.top=topPx+'px'; lbl.style.height=hPx+'px';
   const txt=document.createElement('div'); txt.className='ev-nonfocus-text'; txt.textContent=ev.title;
