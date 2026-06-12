@@ -2794,7 +2794,8 @@ function openCtx(id, x, y, dk){
   // 詳細パネルを開く
   const visEv = allVisibleEvents().find(e => (e._baseId||e.id) === id && e.dateKey === dk) || ev;
   const dayMemo = ev.dayMemos?.[dk] || '';
-  const memo = dayMemo || ev.memo || '';
+  const baseMemo = ev.memo || '';
+  const memo = [dayMemo, baseMemo].filter(Boolean).join('\n\n');
 
   document.getElementById('evDetailTitle').textContent = ev.title;
   document.getElementById('evDetailTime').textContent = minToTime(ev.start) + '〜' + minToTime(ev.end);
