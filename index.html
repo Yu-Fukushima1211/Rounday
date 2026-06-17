@@ -771,7 +771,21 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
   cursor: pointer;
   height: 3px;
 }
-
+.todo-edit-btn {
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.06em;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.1s;
+  align-self: flex-start;
+  margin-top: 3px;
+}
+.todo-edit-btn:hover { background: var(--border); }
 </style>
 </head>
 <body>
@@ -3741,6 +3755,7 @@ function makeTodoCard(t, isDone){
           <button class="todo-schedule-btn" data-tid="${t.id}">＋ 予定に追加</button>
         ` : ''}
       </div>
+      ${!isDone ? `<button class="todo-edit-btn" data-tid="${t.id}">✏ 編集</button>` : ''}
       <button class="todo-card-del" data-tid="${t.id}">✕</button>
     </div>
   `;
@@ -3760,6 +3775,12 @@ function makeTodoCard(t, isDone){
     removeTodoData(t.id);
     saveAll(); renderTodoList();
   });
+
+if(!isDone){
+  card.querySelector('.todo-edit-btn').addEventListener('click', () => {
+    openTodoModal(t.id, null, null);
+  });
+}
 
   // 進捗スライダー
   if(!isDone){
