@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>Rounday</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#111110">
+<meta name="theme-color" content="#f7f5f0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Rounday">
@@ -786,6 +786,171 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
   margin-top: 3px;
 }
 .todo-edit-btn:hover { background: var(--border); }
+
+/* iOS visual refresh */
+:root,
+[data-theme="ios-light"] {
+  --bg: #f7f5f0;
+  --surface: rgba(255, 255, 255, 0.76);
+  --surface-solid: #ffffff;
+  --surface-raised: rgba(255, 255, 255, 0.92);
+  --border: rgba(60, 60, 67, 0.14);
+  --border-strong: rgba(60, 60, 67, 0.24);
+  --text: #1c1c1e;
+  --text-muted: #6e6e73;
+  --text-faint: #a8a29e;
+  --accent: #007aff;
+  --accent-soft: rgba(0, 122, 255, 0.14);
+  --danger: #ff3b30;
+  --shadow-soft: 0 8px 24px rgba(31, 31, 35, 0.08);
+  --shadow-panel: 0 20px 55px rgba(31, 31, 35, 0.18);
+  --header-h: 58px;
+  --toolbar-h: 54px;
+  --radius-btn: 12px;
+  --radius-ev: 13px;
+  --spacing-modal-pad: 18px;
+}
+
+[data-theme="ios-dark"] {
+  --bg: #000000;
+  --surface: rgba(28, 28, 30, 0.76);
+  --surface-solid: #1c1c1e;
+  --surface-raised: rgba(44, 44, 46, 0.92);
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --text: #f5f5f7;
+  --text-muted: #a1a1a6;
+  --text-faint: #636366;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.20);
+  --danger: #ff453a;
+  --shadow-soft: 0 8px 26px rgba(0, 0, 0, 0.34);
+  --shadow-panel: 0 22px 60px rgba(0, 0, 0, 0.52);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Yu Gothic UI", "Zen Kaku Gothic New", sans-serif;
+  background: radial-gradient(circle at 18% -10%, rgba(0, 122, 255, 0.08), transparent 28%), var(--bg);
+  color: var(--text);
+  letter-spacing: 0;
+}
+
+[data-theme="ios-dark"] body {
+  background: radial-gradient(circle at 18% -10%, rgba(10, 132, 255, 0.14), transparent 30%), var(--bg);
+}
+
+#header, #toolbar, .modal, .cal-picker, #drawer, #taskPanel, #todoPanel, #selfMessagePanel, .ctx-menu, #evDetail, #selfMessageBanner, #schedulingBanner {
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+}
+
+#header {
+  padding: 0 max(14px, env(safe-area-inset-left)) 0 max(14px, env(safe-area-inset-right));
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+  gap: 8px;
+}
+
+.logo { font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; }
+.day-selector { height: 36px; padding: 0 8px; border-radius: 999px; background: var(--surface-raised); border: 1px solid var(--border); }
+.day-selector label { font-family: inherit; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; }
+.day-selector input[type=range], .todo-progress-slider { accent-color: var(--accent); }
+
+.nav-btn, .today-btn, .header-icon-btn, .cal-open-btn, .btn, .wd-btn, .task-snooze-btn, .todo-schedule-btn, .todo-edit-btn, .self-message-banner-btn, .ev-detail-btn {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+  border-radius: var(--radius-btn);
+  box-shadow: none;
+}
+
+.nav-btn, .header-icon-btn { width: 34px; height: 34px; }
+.cal-open-btn, .today-btn { height: 34px; padding: 0 12px; font-family: inherit; font-weight: 600; letter-spacing: 0; }
+.nav-btn:hover, .today-btn:hover, .header-icon-btn:hover, .cal-open-btn:hover, .btn:hover, .wd-btn:hover, .task-snooze-btn:hover, .todo-schedule-btn:hover, .todo-edit-btn:hover, .ev-detail-btn:hover, .drawer-item:hover { background: var(--accent-soft); }
+
+#toolbar { background: var(--surface); border-bottom: 1px solid var(--border); padding-right: var(--scrollbar-w, 0px); }
+.toolbar-spacer, .toolbar-day, #time-col, .day-col { border-color: var(--border); }
+.toolbar-day { gap: 3px; }
+.toolbar-dow { font-family: inherit; font-size: 11px; font-weight: 600; letter-spacing: 0; }
+.toolbar-date { font-family: inherit; font-size: 18px; font-weight: 700; }
+.toolbar-day.is-today .toolbar-date, .cal-day.is-anchor, .wd-btn.active, .type-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+#scroll-area { background: color-mix(in srgb, var(--bg) 92%, var(--surface-solid)); }
+#grid { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent), color-mix(in srgb, var(--bg) 94%, var(--surface-solid)); }
+#time-col { background: color-mix(in srgb, var(--bg) 82%, var(--surface-solid)); }
+.time-label { font-family: "SF Mono", "DM Mono", monospace; font-size: 10px; color: var(--text-faint); }
+.hour-line { border-top-color: var(--border); }
+.hour-line.half { opacity: 0.26; }
+.now-line, .now-line::before { background: var(--accent); }
+.drag-sel { background: var(--accent-soft); border-color: var(--accent); }
+
+.ev-focus {
+  border-radius: var(--radius-ev);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+.ev-focus:hover { filter: saturate(1.04) brightness(0.98); }
+.ev-focus-inner { padding: 7px 8px; }
+.ev-title { font-size: 11.5px; font-weight: 700; line-height: 1.34; }
+.ev-time-label, .ev-memo { font-family: inherit; }
+.ev-nonfocus-bar { width: 4px; border-radius: 999px; opacity: 0.58; }
+
+.modal, .cal-picker, .ctx-menu { background: var(--surface); border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow-panel); }
+.overlay, #calPickerOverlay { background: rgba(0, 0, 0, 0.28); }
+.modal-header, .modal-footer { background: var(--surface-raised); border-color: var(--border); backdrop-filter: blur(22px) saturate(170%); -webkit-backdrop-filter: blur(22px) saturate(170%); }
+.panel-header, .drawer-header { background: color-mix(in srgb, var(--surface-raised) 86%, transparent); border-color: var(--border); backdrop-filter: blur(22px) saturate(170%); -webkit-backdrop-filter: blur(22px) saturate(170%); }
+.modal-title, .panel-title, .drawer-title, .settings-section-label, .section-label { font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; text-transform: none; }
+.modal-close, .panel-close, .drawer-close, .cal-picker-close, .todo-card-del, .task-del-btn { color: var(--text-muted); border-radius: 999px; }
+
+.field input[type=text], .field input[type=date], .field input[type=time], .field textarea, .field select, .cal-picker-head select {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family: inherit;
+}
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.type-toggle { padding: 3px; border: 1px solid var(--border); border-radius: 13px; background: color-mix(in srgb, var(--bg) 70%, var(--surface-solid)); gap: 3px; }
+.type-btn { border: none; border-radius: 10px; font-family: inherit; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 86%, #000); }
+
+#drawer, #taskPanel, #todoPanel, #selfMessagePanel { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow-panel); }
+#drawer { width: min(310px, 88vw); }
+.drawer-body, .panel-body { padding: 14px; gap: 10px; }
+.drawer-item { min-height: 48px; padding: 13px 14px; border-radius: 14px; background: var(--surface-raised); border: 1px solid var(--border); font-size: 14px; font-weight: 600; }
+.drawer-item-icon { color: var(--accent); }
+.drawer-sep { background: transparent; margin: 2px 0; }
+
+.task-card, .todo-card, .self-message-card { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-soft); padding: 12px 14px; }
+.task-card-text, .todo-card-text { font-size: 13.5px; font-weight: 700; }
+.task-check-btn, .todo-check-btn, .self-message-check-btn { border-color: var(--border-strong); background: color-mix(in srgb, var(--surface-solid) 70%, transparent); }
+.task-check-btn.checked, .todo-check-btn.checked, .self-message-check-btn.checked { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 4px var(--surface-solid); }
+.panel-add-btn { margin: 0 14px 14px; padding: 12px; border-radius: 16px; border: 1px dashed var(--border-strong); background: var(--surface); font-family: inherit; letter-spacing: 0; }
+.todo-progress-bar-bg { height: 6px; background: var(--border); border-radius: 999px; }
+.todo-progress-bar-fill { background: var(--accent); }
+
+#schedulingBanner, #selfMessageBanner { background: var(--surface-raised); color: var(--text); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-panel); }
+.theme-btn { border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); font-family: inherit; color: var(--text); }
+.theme-btn.active { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.theme-preview { height: 42px; border-radius: 12px; }
+.ios-light-preview { background: radial-gradient(circle at 74% 30%, rgba(0,122,255,0.34), transparent 24%), linear-gradient(135deg, #f7f5f0 0 50%, #ffffff 50%); border: 1px solid rgba(60,60,67,0.18); }
+.ios-dark-preview { background: radial-gradient(circle at 74% 30%, rgba(10,132,255,0.45), transparent 24%), linear-gradient(135deg, #000000 0 50%, #1c1c1e 50%); border: 1px solid rgba(255,255,255,0.18); }
+.color-swatch { width: 26px; height: 26px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35); }
+.color-swatch.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+@media (max-width: 480px) {
+  #header { gap: 6px; }
+  .day-selector { padding: 0 6px; }
+  .day-selector input[type=range] { width: 66px; }
+  .nav-row { gap: 5px; }
+}
 </style>
 </head>
 <body>
@@ -1440,22 +1605,14 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
     </div>
     <div class="modal-body">
       <div class="settings-section-label">テーマ</div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:4px;">
-        <button class="theme-btn" data-theme="classic">
-          <div class="theme-preview classic-preview"></div>
-          <span>Classic</span>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:4px;">
+        <button class="theme-btn" data-theme="ios-light">
+          <div class="theme-preview ios-light-preview"></div>
+          <span>Light</span>
         </button>
-        <button class="theme-btn" data-theme="elegant">
-          <div class="theme-preview elegant-preview"></div>
-          <span>Elegant</span>
-        </button>
-        <button class="theme-btn" data-theme="modern">
-          <div class="theme-preview modern-preview"></div>
-          <span>Modern</span>
-        </button>
-        <button class="theme-btn" data-theme="warm">
-          <div class="theme-preview warm-preview"></div>
-          <span>Warm</span>
+        <button class="theme-btn" data-theme="ios-dark">
+          <div class="theme-preview ios-dark-preview"></div>
+          <span>Dark</span>
         </button>
       </div>
       <hr class="section-divider">  
@@ -1594,7 +1751,7 @@ function normalizeSettings(rawSettings) {
     weekStart: 0,
     timeStart: 0,
     timeEnd: 24,
-    theme: 'classic',
+    theme: 'ios-light',
     morningNotif: false,
     morningNotifH: 8,
     morningNotifM: 0,
@@ -1628,7 +1785,7 @@ function normalizeSettings(rawSettings) {
     normalized.timeEnd = Number(normalized.timeEnd);
   }
 
-  if (!['classic', 'elegant', 'modern', 'warm'].includes(normalized.theme)) {
+  if (!['ios-light', 'ios-dark'].includes(normalized.theme)) {
     normalized.theme = defaults.theme;
   }
 
@@ -4530,7 +4687,7 @@ function importData(file){
         weekStart: 0,
         timeStart: 0,
         timeEnd: 24,
-        theme: 'classic',
+        theme: 'ios-light',
         morningNotif: false,
         morningNotifH: 8,
         morningNotifM: 0,
@@ -4562,9 +4719,9 @@ function importData(file){
 
       saveAll();
       saveSettings();
-
-      applyTheme(settings.theme || 'classic');
+      applyTheme(settings.theme || 'ios-light');
       buildGrid();
+      syncToolbarGutter();
       renderTaskList();
       renderTodoList();
       renderSelfMessagePanel();
@@ -4806,7 +4963,7 @@ function openSettingsModal() {
   document.getElementById('morningNotifM').value = settings.morningNotifM || 0;
   // テーマボタンの状態を反映
   document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.theme === (settings.theme || 'classic'));
+    btn.classList.toggle('active', btn.dataset.theme === (settings.theme || 'ios-light'));
   });
   document.getElementById('settingsOverlay').classList.add('open');
 }
@@ -4840,7 +4997,7 @@ document.getElementById('settingsDone').addEventListener('click',()=>{ document.
 document.getElementById('settingsOverlay').addEventListener('click',e=>{ if(e.target.id==='settingsOverlay') document.getElementById('settingsOverlay').classList.remove('open'); });
 // ── テーマ適用 ──
 function applyTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme === 'classic' ? '' : theme);
+  document.documentElement.setAttribute('data-theme', theme);
   document.querySelectorAll('.theme-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === theme);
   });
@@ -4854,8 +5011,16 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
 });
 
 // ページロード時にテーマを復元
-applyTheme(settings.theme || 'classic');
+function syncToolbarGutter() {
+  const scroller = document.getElementById('scroll-area');
+  if (!scroller) return;
+  const gutter = Math.max(0, scroller.offsetWidth - scroller.clientWidth);
+  document.documentElement.style.setProperty('--scrollbar-w', gutter + 'px');
+}
+window.addEventListener('resize', syncToolbarGutter);
+applyTheme(settings.theme || 'ios-light');
 buildGrid();
+syncToolbarGutter();
 scrollToNow();
 renderSelfMessagePanel();
 updateSelfMessageBanner();
