@@ -1,7 +1,9 @@
-const CACHE = 'Rounday-20260621-v3';
+const CACHE = 'Rounday-20260622-v4';
 const FILES = [
   './',
   './index.html',
+  './styles.css',
+  './app.js',
 ];
 
 self.addEventListener('install', e => {
