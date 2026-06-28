@@ -1067,15 +1067,15 @@ body {
 }
 
 [data-theme="ios-dark"] .ev-focus {
-  filter: saturate(0.72) brightness(0.72) contrast(0.96);
+  filter: saturate(0.86) brightness(0.88) contrast(0.92);
   box-shadow:
-    0 5px 14px rgba(0, 0, 0, 0.38),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
-    inset 0 0 0 999px rgba(0, 0, 0, 0.12);
+    0 5px 14px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 0 0 999px rgba(0, 0, 0, 0.04);
 }
 
 [data-theme="ios-dark"] .ev-focus:hover {
-  filter: saturate(0.82) brightness(0.82) contrast(0.98);
+  filter: saturate(0.95) brightness(0.96) contrast(1.00);
 }
 
 [data-theme="ios-dark"] .ev-title,
