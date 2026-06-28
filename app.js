@@ -2260,7 +2260,8 @@ function renderTodoList(){
 function makeTodoCard(t, isDone){
   const card = document.createElement('div');
   card.className = 'todo-card' + (isDone ? ' done' : '');
-  const originEv = t.originEventId ? events.find(e => e.id === t.originEventId) : null;
+  const originEv = getTodoOriginEvent(t);
+  const originDateLabel = t.originEventDateKey ? formatOriginDateLabel(t.originEventDateKey) + ' ' : '';
 
   // 期限表示（nullの場合は「期限なし」）
   let dlStr = '期限なし';
@@ -2283,7 +2284,7 @@ function makeTodoCard(t, isDone){
       <button class="todo-check-btn${isDone ? ' checked' : ''}" title="${isDone ? '未完了に戻す' : '完了にする'}" data-tid="${t.id}"></button>
       <div class="todo-card-body">
         <div class="todo-card-text">${esc(t.text)}</div>
-        ${originEv ? `<div class="todo-card-origin"><span class="meta-label">予定</span>${esc(originEv.title)}</div>` : ''}
+        ${originEv ? `<div class="todo-card-origin"><span class="meta-label">予定</span>${originDateLabel}${esc(originEv.title)}</div>` : ''}
         ${t.deadline ? `<div class="todo-card-deadline"><span class="meta-label">期限</span>${dlStr}</div>` : `<div class="todo-card-deadline" style="color:var(--text-faint);"><span class="meta-label">期限</span>なし</div>`}
         ${!isDone ? `
           <div class="todo-progress-wrap">
@@ -2349,18 +2350,57 @@ if(!isDone){
 }
 
 // 発生元予定のセレクトを初期化
-function populateTodoOriginEv(preselect){
+function formatOriginDateLabel(dateKeyValue){
+  if(!dateKeyValue) return '';
+  const d = new Date(dateKeyValue + 'T00:00:00');
+  if(Number.isNaN(d.getTime())) return dateKeyValue;
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function getEventsForOriginDate(originDateKey){
+  if(!originDateKey) return [];
+  const seen = new Set();
+  return allVisibleEvents()
+    .filter(ev => ev.dateKey === originDateKey && !isInvalidRepeatEvent(ev))
+    .filter(ev => {
+      const id = ev._baseId || ev.id;
+      if(seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .sort((a, b) => (a.start || 0) - (b.start || 0));
+}
+
+function getTodoOriginEvent(todo){
+  if(!todo?.originEventId) return null;
+  if(todo.originEventDateKey){
+    return allVisibleEvents().find(ev =>
+      (ev._baseId || ev.id) === todo.originEventId && ev.dateKey === todo.originEventDateKey
+    ) || events.find(ev => ev.id === todo.originEventId) || null;
+  }
+  return events.find(ev => ev.id === todo.originEventId) || null;
+}
+
+function populateTodoOriginEv(originDateKey, preselect){
   const sel = document.getElementById('tdOriginEv');
   sel.innerHTML = '<option value="">-- 選択しない --</option>';
 
-  getSelectableEvents().forEach(ev => {
+  if(!originDateKey){
+    sel.disabled = true;
+    return;
+  }
+
+  sel.disabled = false;
+  getEventsForOriginDate(originDateKey).forEach(ev => {
+    const id = ev._baseId || ev.id;
     const o = document.createElement('option');
-    o.value = ev.id;
-    o.textContent = ev.title + (ev.dateKey ? ` (${ev.dateKey})` : '');
+    o.value = id;
+    const time = ev.start != null ? `${minToTime(ev.start)} ` : '';
+    o.textContent = `${time}${ev.title}`;
     sel.appendChild(o);
   });
 
-  if(preselect) sel.value = preselect;
+  if(preselect) sel.value = String(preselect);
 }
 
 // TODOモーダルを開く
@@ -2377,18 +2417,21 @@ function openTodoModal(todoId, originEvId, originEvDateKey){
     document.getElementById('tdDate').value = dateKey(dl);
     document.getElementById('tdHour').value = dl.getHours();
     document.getElementById('tdMin').value = Math.round(dl.getMinutes() / 5) * 5;
-    populateTodoOriginEv(t.originEventId || '');
+    const originDate = t.originEventDateKey || (t.originEventId ? events.find(ev => ev.id === t.originEventId)?.dateKey : '') || '';
+    document.getElementById('tdOriginDate').value = originDate;
+    populateTodoOriginEv(originDate, t.originEventId || '');
   } else {
     document.getElementById('tdText').value = '';
     document.getElementById('tdDate').value = dateKey(now);
     document.getElementById('tdHour').value = now.getHours();
     document.getElementById('tdMin').value = 0;
-    populateTodoOriginEv(originEvId || '');
+    const originDate = originEvDateKey || '';
+    document.getElementById('tdOriginDate').value = originDate;
+    populateTodoOriginEv(originDate, originEvId || '');
   }
   document.getElementById('todoOverlay').classList.add('open');
   setTimeout(() => document.getElementById('tdText').focus(), 50);
 }
-
 function closeTodoModal(){ document.getElementById('todoOverlay').classList.remove('open'); }
 
 // TODOの「予定に追加」フローを開始
@@ -2427,6 +2470,12 @@ document.getElementById('todoModalClose').addEventListener('click', closeTodoMod
 document.getElementById('todoModalCancel').addEventListener('click', closeTodoModal);
 document.getElementById('todoOverlay').addEventListener('click', e => { if(e.target.id === 'todoOverlay') closeTodoModal(); });
 
+
+document.getElementById('tdOriginDate').addEventListener('change', function() {
+  pendingTodoOriginDateKey = this.value || null;
+  populateTodoOriginEv(pendingTodoOriginDateKey, '');
+});
+
 document.getElementById('todoModalSave').addEventListener('click', () => {
   const text = document.getElementById('tdText').value.trim();
   if(!text){ document.getElementById('tdText').focus(); return; }
@@ -2434,12 +2483,13 @@ document.getElementById('todoModalSave').addEventListener('click', () => {
   const h = Number(document.getElementById('tdHour').value);
   const m = Number(document.getElementById('tdMin').value);
   const dl = new Date(`${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);
+  const originDateKey = document.getElementById('tdOriginDate').value || null;
   const originEvId = document.getElementById('tdOriginEv').value;
   const obj = {
     text,
     deadline: dl.toISOString(),
     originEventId: originEvId ? Number(originEvId) : null,
-    originEventDateKey: pendingTodoOriginDateKey,
+    originEventDateKey: originEvId ? originDateKey : null,
     scheduledEventId: todoModalMode === 'edit' ? (todos.find(t => t.id === editTodoId)?.scheduledEventId ?? null) : null,
   };
   if(todoModalMode === 'create'){
