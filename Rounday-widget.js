@@ -2,6 +2,7 @@
 // Put rounday-widget.json in iCloud Drive/Scriptable, then run this script as a widget.
 
 const DATA_FILE = 'rounday-widget.json';
+const ROUNDAY_URL = 'https://yu-fukushima1211.github.io/Rounday/';
 const fm = FileManager.iCloud();
 const data = await readRoundayData();
 const today = new Date();
@@ -33,6 +34,7 @@ async function readRoundayData() {
 
 async function createWidget(rounday) {
   const w = new ListWidget();
+  w.url = ROUNDAY_URL;
   w.backgroundColor = new Color('#f9f9f7');
   w.setPadding(14, 14, 14, 14);
 
