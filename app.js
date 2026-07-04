@@ -3079,6 +3079,45 @@ function exportData(){
   URL.revokeObjectURL(a.href);
 }
 
+function getWidgetExportData(){
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    events,
+    tasks,
+    todos,
+    settings
+  };
+}
+
+async function exportWidgetData(){
+  const fileName = 'rounday-widget.json';
+  const json = JSON.stringify(getWidgetExportData(), null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+
+  if (navigator.canShare && navigator.share) {
+    const file = new File([blob], fileName, { type: 'application/json' });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: 'Rounday Widget JSON',
+          text: 'Scriptable widget data for Rounday',
+          files: [file]
+        });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+  }
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function importData(file){
   if(!file) return;
 
@@ -3432,6 +3471,7 @@ document.getElementById('settingsTimeEnd').addEventListener('change', function()
 });
 
 document.getElementById('settingsExport').addEventListener('click', () => exportData());
+document.getElementById('settingsWidgetExport').addEventListener('click', () => exportWidgetData());
 document.getElementById('settingsImportFile').addEventListener('change', function() { importData(this.files[0]); this.value=''; });
 
 document.getElementById('settingsClose').addEventListener('click',()=>{ document.getElementById('settingsOverlay').classList.remove('open'); });
