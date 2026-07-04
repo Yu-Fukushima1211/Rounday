@@ -1,19 +1,28 @@
-# Rounday Scriptable Widget
+# Rounday Widgets
 
-Rounday は PWA/HTML アプリなので、iOS の WidgetKit から `localStorage` を直接読むことはできません。
-このため、Rounday から `rounday-widget.json` を書き出し、Scriptable のウィジェットがその JSON を読む方式にしています。
+Rounday is a PWA, so iOS widgets cannot read its `localStorage` directly.
+This repo includes two workaround widgets.
 
-## Setup
+## Scriptable
 
-1. iPhone に Scriptable を入れる。
-2. `Rounday-widget.js` を Scriptable の新規スクリプトに貼り付ける。
-3. Rounday の設定から `Widget JSON` を押して、`rounday-widget.json` を書き出す。
-4. Files アプリで `rounday-widget.json` を `iCloud Drive/Scriptable/` に置く。
-5. ホーム画面に Scriptable ウィジェットを追加し、スクリプトに `Rounday-widget` を指定する。
+1. Install Scriptable on iPhone.
+2. Paste `Rounday-widget.js` into a new Scriptable script named `Rounday-widget`.
+3. In Rounday, open Settings and tap `Widget JSON`.
+4. Save `rounday-widget.json` to `iCloud Drive/Scriptable/`.
+5. Add a Scriptable widget to the Home Screen and choose `Rounday-widget`.
 
-## Refresh
+Refresh data by tapping `Widget JSON` again and replacing the same JSON file.
 
-予定や TODO を変えたあとは、Rounday 側で `Widget JSON` を再度書き出して同じファイルを置き換えてください。
-Scriptable のウィジェットは iOS の更新タイミングで再読み込みされます。
+## Widget Web
 
-`rounday-widget.json` は `iCloud Drive/Scriptable/Rounday/` に置いても読めます。
+1. Install Widget Web on iPhone.
+2. In Rounday, open Settings and tap `Widget Web`.
+3. Share or copy the generated URL.
+4. Open that URL in Widget Web and add it as a widget.
+
+The URL opens `widget-web.html` with encoded Rounday data in the hash.
+The widget page stores the data in Widget Web's local storage, then renders today's events, reminders, and TODOs.
+
+Refresh data by tapping `Widget Web` again after changing Rounday data, then opening the new generated URL in Widget Web.
+
+Note: opening the full Rounday PWA from an iOS widget is limited by iOS. These widgets can link to the Rounday URL, but iOS may open it in Safari instead of the installed Home Screen PWA.

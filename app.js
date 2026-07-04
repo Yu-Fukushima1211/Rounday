@@ -3090,6 +3090,46 @@ function getWidgetExportData(){
   };
 }
 
+function encodeWidgetPayload(data){
+  const json = JSON.stringify(data);
+  const utf8 = encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, hex) =>
+    String.fromCharCode(parseInt(hex, 16))
+  );
+  return btoa(utf8).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function getWidgetWebUrl(){
+  const baseUrl = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}widget-web.html`;
+  return `${baseUrl}#data=${encodeWidgetPayload(getWidgetExportData())}`;
+}
+
+async function exportWidgetWebLink(){
+  const url = getWidgetWebUrl();
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Rounday Widget Web',
+        text: 'Widget WebでこのURLを開いてください',
+        url
+      });
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+  }
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('Widget Web用URLをコピーしました');
+      return;
+    } catch (e) {}
+  }
+
+  prompt('Widget Web用URLをコピーしてください', url);
+}
+
 async function exportWidgetData(){
   const fileName = 'rounday-widget.json';
   const json = JSON.stringify(getWidgetExportData(), null, 2);
@@ -3472,6 +3512,7 @@ document.getElementById('settingsTimeEnd').addEventListener('change', function()
 
 document.getElementById('settingsExport').addEventListener('click', () => exportData());
 document.getElementById('settingsWidgetExport').addEventListener('click', () => exportWidgetData());
+document.getElementById('settingsWidgetWeb').addEventListener('click', () => exportWidgetWebLink());
 document.getElementById('settingsImportFile').addEventListener('change', function() { importData(this.files[0]); this.value=''; });
 
 document.getElementById('settingsClose').addEventListener('click',()=>{ document.getElementById('settingsOverlay').classList.remove('open'); });

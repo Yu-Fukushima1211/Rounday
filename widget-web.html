@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rounday Widget Web</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f9f9f7;
+  color: #111110;
+  padding: 14px;
+  font-size: 12px;
+}
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.title { font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
+.date { color: #777773; font-weight: 600; white-space: nowrap; }
+.updated { color: #999993; font-size: 10px; margin-top: -6px; margin-bottom: 10px; }
+.section { margin-top: 10px; }
+.section-title { color: #777773; font-size: 10px; font-weight: 700; margin-bottom: 4px; }
+.line { display: flex; align-items: center; min-width: 0; gap: 5px; min-height: 18px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: #111110; }
+.time { color: #777773; font-weight: 700; min-width: 35px; font-variant-numeric: tabular-nums; }
+.text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.muted { color: #999993; line-height: 1.45; }
+.launch {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 9px;
+  border: 1px solid #d7d7d2;
+  border-radius: 7px;
+  color: #111110;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 600;
+}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const STORAGE_KEY = 'rounday-widget-web-data';
+const ROUNDAY_URL = 'https://yu-fukushima1211.github.io/Rounday/';
+const today = new Date();
+const todayKey = dateKey(today);
+
+bootstrap();
+
+function bootstrap() {
+  const incoming = readHashData();
+  if (incoming) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(incoming));
+    history.replaceState(null, '', location.pathname);
+  }
+
+  const data = readStoredData();
+  render(data);
+}
+
+function readHashData() {
+  const match = location.hash.match(/(?:^#|&)data=([^&]+)/);
+  if (!match) return null;
+
+  try {
+    return JSON.parse(decodePayload(match[1]));
+  } catch (e) {
+    return null;
+  }
+}
+
+function readStoredData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function render(rounday) {
+  const app = document.getElementById('app');
+
+  if (!rounday) {
+    app.innerHTML = `
+      <div class="top"><div class="title">Rounday</div><div class="date">${formatDay(today)}</div></div>
+      <div class="muted">Roundayの設定からWidget Webリンクを作成して、このページをWidget Webで開いてください。</div>
+    `;
+    return;
+  }
+
+  const events = eventsForDate(rounday.events || [], todayKey)
+    .sort((a, b) => (a.start || 0) - (b.start || 0));
+  const reminders = activeReminders(rounday.tasks || []);
+  const todos = activeTodos(rounday.todos || []);
+
+  app.innerHTML = `
+    <div class="top">
+      <div class="title">Rounday</div>
+      <div class="date">${formatDay(today)}</div>
+    </div>
+    ${rounday.exportedAt ? `<div class="updated">更新 ${formatShortTime(new Date(rounday.exportedAt))}</div>` : ''}
+    ${sectionHtml('今日の予定', events, 5, eventHtml, '予定なし')}
+    ${sectionHtml('リマインダー', reminders, 3, reminderHtml, '未完了なし')}
+    ${sectionHtml('TODO', todos, 3, todoHtml, '未完了なし')}
+    <a class="launch" href="${ROUNDAY_URL}" target="_blank">Roundayを開く</a>
+  `;
+}
+
+function sectionHtml(title, items, max, renderer, emptyText) {
+  const rows = items.length
+    ? items.slice(0, max).map(renderer).join('') + (items.length > max ? `<div class="muted">+${items.length - max}</div>` : '')
+    : `<div class="muted">${emptyText}</div>`;
+
+  return `<section class="section"><div class="section-title">${title}</div>${rows}</section>`;
+}
+
+function eventHtml(ev) {
+  return `
+    <div class="line">
+      <span class="dot" style="background:${validColor(ev.color, '#111110')}"></span>
+      <span class="time">${minToTime(ev.start)}</span>
+      <span class="text">${escapeHtml(ev.title || 'Untitled')}</span>
+    </div>
+  `;
+}
+
+function reminderHtml(task) {
+  const when = new Date(task.snoozedUntil || task.datetime);
+  return `
+    <div class="line">
+      <span class="time">${formatTaskTime(when)}</span>
+      <span class="text">${escapeHtml(task.text || 'Reminder')}</span>
+    </div>
+  `;
+}
+
+function todoHtml(todo) {
+  return `
+    <div class="line">
+      <span class="time">□</span>
+      <span class="text">${escapeHtml(todo.text || 'TODO')}</span>
+    </div>
+  `;
+}
+
+function eventsForDate(events, dk) {
+  const result = [];
+  for (const ev of events) {
+    if (ev.repeat && ev.repeat.type && ev.repeat.type !== 'none') {
+      const expanded = expandRepeatingEvent(ev, dk);
+      if (expanded) result.push(expanded);
+    } else if (ev.dateKey === dk) {
+      result.push(ev);
+    }
+  }
+  return result;
+}
+
+function expandRepeatingEvent(ev, dk) {
+  const repeat = ev.repeat || {};
+  if ((ev.excludeDates || []).includes(dk)) return null;
+  if (!repeat.from || !repeat.to || dk < repeat.from || dk > repeat.to) return null;
+
+  const cur = new Date(`${dk}T00:00:00`);
+  const from = new Date(`${repeat.from}T00:00:00`);
+  const dow = cur.getDay();
+  let match = false;
+
+  if (repeat.type === 'weekly') {
+    match = (repeat.weekdays || []).includes(dow);
+  } else if (repeat.type === 'nweekly') {
+    const diffDays = Math.round((cur - from) / 86400000);
+    const weekNum = Math.floor(diffDays / 7);
+    match = weekNum % Math.max(1, Number(repeat.interval) || 1) === 0
+      && (repeat.weekdays || []).includes(dow);
+  } else if (repeat.type === 'monthly_dow' && dow === repeat.monthDow) {
+    const weekOfMonth = Math.ceil(cur.getDate() / 7);
+    const weeks = repeat.monthWeeks && repeat.monthWeeks.length > 0
+      ? repeat.monthWeeks
+      : repeat.monthWeek ? [repeat.monthWeek] : [];
+    match = weeks.includes(weekOfMonth);
+  }
+
+  return match ? { ...ev, dateKey: dk } : null;
+}
+
+function activeReminders(tasks) {
+  const now = new Date();
+  return tasks
+    .filter(task => !task.done)
+    .filter(task => task.datetime || task.snoozedUntil)
+    .sort((a, b) => new Date(a.snoozedUntil || a.datetime) - new Date(b.snoozedUntil || b.datetime))
+    .filter(task => new Date(task.snoozedUntil || task.datetime) >= new Date(now.getTime() - 86400000));
+}
+
+function activeTodos(todos) {
+  return todos
+    .filter(todo => !todo.done)
+    .sort((a, b) => {
+      if (a.deadline && b.deadline) return new Date(a.deadline) - new Date(b.deadline);
+      if (a.deadline) return -1;
+      if (b.deadline) return 1;
+      return (a.id || 0) - (b.id || 0);
+    });
+}
+
+function decodePayload(payload) {
+  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='));
+  const encoded = Array.from(binary, ch =>
+    `%${ch.charCodeAt(0).toString(16).padStart(2, '0')}`
+  ).join('');
+  return decodeURIComponent(encoded);
+}
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function minToTime(m) {
+  const n = Number(m) || 0;
+  return `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+}
+
+function formatDay(d) {
+  const dows = ['日', '月', '火', '水', '木', '金', '土'];
+  return `${d.getMonth() + 1}/${d.getDate()} ${dows[d.getDay()]}`;
+}
+
+function formatShortTime(d) {
+  if (Number.isNaN(d.getTime())) return '--:--';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatTaskTime(d) {
+  if (Number.isNaN(d.getTime())) return '--:--';
+  if (dateKey(d) === todayKey) return formatShortTime(d);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function validColor(value, fallback) {
+  return /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
+</script>
+</body>
+</html>
