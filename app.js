@@ -3090,6 +3090,56 @@ function getWidgetExportData(){
   };
 }
 
+function getWidgetWebSnapshot(){
+  const dk = todayStr();
+  const now = new Date();
+
+  const dayEvents = allVisibleEvents()
+    .filter(ev => ev.dateKey === dk)
+    .sort((a, b) => (a.start || 0) - (b.start || 0))
+    .slice(0, 8)
+    .map(ev => ({
+      title: ev.title || '',
+      start: ev.start || 0,
+      color: ev.color || '#111110'
+    }));
+
+  const reminders = tasks
+    .filter(task => !task.done)
+    .filter(task => task.datetime || task.snoozedUntil)
+    .sort((a, b) => new Date(getTaskNotifyDateTime(a)) - new Date(getTaskNotifyDateTime(b)))
+    .filter(task => new Date(getTaskNotifyDateTime(task)) >= new Date(now.getTime() - 86400000))
+    .slice(0, 5)
+    .map(task => ({
+      text: task.text || '',
+      datetime: getTaskNotifyDateTime(task)
+    }));
+
+  const activeTodos = todos
+    .filter(todo => !todo.done)
+    .sort((a, b) => {
+      if (a.deadline && b.deadline) return new Date(a.deadline) - new Date(b.deadline);
+      if (a.deadline) return -1;
+      if (b.deadline) return 1;
+      return (a.id || 0) - (b.id || 0);
+    })
+    .slice(0, 5)
+    .map(todo => ({
+      text: todo.text || '',
+      deadline: todo.deadline || null
+    }));
+
+  return {
+    version: 2,
+    type: 'snapshot',
+    dateKey: dk,
+    exportedAt: new Date().toISOString(),
+    events: dayEvents,
+    reminders,
+    todos: activeTodos
+  };
+}
+
 function encodeWidgetPayload(data){
   const json = JSON.stringify(data);
   const utf8 = encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, hex) =>
@@ -3100,7 +3150,7 @@ function encodeWidgetPayload(data){
 
 function getWidgetWebUrl(){
   const baseUrl = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}widget-web.html`;
-  return `${baseUrl}#data=${encodeWidgetPayload(getWidgetExportData())}`;
+  return `${baseUrl}?data=${encodeURIComponent(encodeWidgetPayload(getWidgetWebSnapshot()))}`;
 }
 
 async function exportWidgetWebLink(){
@@ -3108,11 +3158,11 @@ async function exportWidgetWebLink(){
 
   if (navigator.share) {
     try {
-      await navigator.share({
-        title: 'Rounday Widget Web',
-        text: 'Widget WebでこのURLを開いてください',
-        url
-      });
+        await navigator.share({
+          title: 'Rounday Widget Web',
+          text: 'Open this URL in Widget Web',
+          url
+        });
       return;
     } catch (e) {
       if (e && e.name === 'AbortError') return;
@@ -3122,12 +3172,12 @@ async function exportWidgetWebLink(){
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(url);
-      alert('Widget Web用URLをコピーしました');
+      alert('Widget Web URL copied');
       return;
     } catch (e) {}
   }
 
-  prompt('Widget Web用URLをコピーしてください', url);
+  prompt('Copy this Widget Web URL', url);
 }
 
 async function exportWidgetData(){

@@ -49,7 +49,7 @@ const todayKey = dateKey(today);
 bootstrap();
 
 function bootstrap() {
-  const incoming = readHashData();
+  const incoming = readIncomingData();
   if (incoming) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(incoming));
     history.replaceState(null, '', location.pathname);
@@ -59,12 +59,14 @@ function bootstrap() {
   render(data);
 }
 
-function readHashData() {
-  const match = location.hash.match(/(?:^#|&)data=([^&]+)/);
-  if (!match) return null;
+function readIncomingData() {
+  const searchData = new URLSearchParams(location.search).get('data');
+  const hashMatch = location.hash.match(/(?:^#|&)data=([^&]+)/);
+  const payload = searchData || (hashMatch ? hashMatch[1] : null);
+  if (!payload) return null;
 
   try {
-    return JSON.parse(decodePayload(match[1]));
+    return JSON.parse(decodePayload(payload));
   } catch (e) {
     return null;
   }
@@ -90,10 +92,16 @@ function render(rounday) {
     return;
   }
 
-  const events = eventsForDate(rounday.events || [], todayKey)
+  const events = (rounday.type === 'snapshot'
+    ? (rounday.events || [])
+    : eventsForDate(rounday.events || [], todayKey))
     .sort((a, b) => (a.start || 0) - (b.start || 0));
-  const reminders = activeReminders(rounday.tasks || []);
-  const todos = activeTodos(rounday.todos || []);
+  const reminders = rounday.type === 'snapshot'
+    ? (rounday.reminders || [])
+    : activeReminders(rounday.tasks || []);
+  const todos = rounday.type === 'snapshot'
+    ? (rounday.todos || [])
+    : activeTodos(rounday.todos || []);
 
   app.innerHTML = `
     <div class="top">
