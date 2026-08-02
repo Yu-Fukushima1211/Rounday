@@ -963,6 +963,102 @@ function allVisibleEvents(){
   return result;
 }
 
+function getTodayEvents() {
+  return allVisibleEvents()
+    .filter(event => event.dateKey === todayStr())
+    .sort((a, b) => (a.start || 0) - (b.start || 0));
+}
+
+function getTodayFreeSlots(dayEvents) {
+  const now = new Date();
+  const currentMinute = now.getHours() * 60 + now.getMinutes();
+  const start = Math.max(settings.timeStart * 60, currentMinute);
+  const end = settings.timeEnd * 60;
+  if (start >= end) return [];
+
+  const busy = dayEvents
+    .map(event => ({ start: Math.max(start, event.start), end: Math.min(end, event.end) }))
+    .filter(slot => slot.end > slot.start)
+    .sort((a, b) => a.start - b.start);
+  const free = [];
+  let cursor = start;
+
+  busy.forEach(slot => {
+    if (slot.start - cursor >= 30) free.push({ start: cursor, end: slot.start });
+    cursor = Math.max(cursor, slot.end);
+  });
+  if (end - cursor >= 30) free.push({ start: cursor, end });
+  return free.slice(0, 3);
+}
+
+function getTodayReminders() {
+  return tasks
+    .filter(task => !task.done && (task.snoozedUntil || task.datetime))
+    .sort((a, b) => new Date(getTaskNotifyDateTime(a)) - new Date(getTaskNotifyDateTime(b)))
+    .slice(0, 4);
+}
+
+function getTodayTodos() {
+  return todos
+    .filter(todo => !todo.done)
+    .sort((a, b) => {
+      if (a.deadline && b.deadline) return new Date(a.deadline) - new Date(b.deadline);
+      if (a.deadline) return -1;
+      if (b.deadline) return 1;
+      return a.id - b.id;
+    })
+    .slice(0, 5);
+}
+
+function formatTodayDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--:--';
+  const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return dateKey(date) === todayStr() ? time : `${date.getMonth() + 1}/${date.getDate()} ${time}`;
+}
+
+function validEventColor(color) {
+  return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#111110';
+}
+
+function renderTodayPanel() {
+  const list = document.getElementById('todayList');
+  if (!list) return;
+
+  const events = getTodayEvents();
+  const now = new Date();
+  const currentMinute = now.getHours() * 60 + now.getMinutes();
+  const nextEvent = events.find(event => event.end >= currentMinute);
+  const reminders = getTodayReminders();
+  const activeTodos = getTodayTodos();
+  const freeSlots = getTodayFreeSlots(events);
+  const dateLabel = `${now.getMonth() + 1}/${now.getDate()}（${DOW[now.getDay()]}）`;
+  const eventRows = events.length
+    ? events.map(event => `<div class="today-row"><span class="today-dot" style="background:${validEventColor(event.color)}"></span><div class="today-row-text">${esc(event.title || 'Untitled')}</div><div class="today-row-meta">${minToTime(event.start)}〜${minToTime(event.end)}</div></div>`).join('')
+    : '<div class="today-empty">今日の予定はありません</div>';
+  const reminderRows = reminders.length
+    ? reminders.map(task => `<div class="today-row"><div class="today-row-time">${formatTodayDateTime(getTaskNotifyDateTime(task))}</div><div class="today-row-text">${esc(task.text || 'Reminder')}</div></div>`).join('')
+    : '<div class="today-empty">未完了リマインダーはありません</div>';
+  const todoRows = activeTodos.length
+    ? activeTodos.map(todo => `<div class="today-row"><div class="today-row-time">TODO</div><div class="today-row-text">${esc(todo.text || 'TODO')}</div>${todo.deadline ? `<div class="today-row-meta">期限 ${formatTodayDateTime(todo.deadline)}</div>` : ''}</div>`).join('')
+    : '<div class="today-empty">未完了TODOはありません</div>';
+  const freeRows = freeSlots.length
+    ? freeSlots.map(slot => `<div class="today-row"><div class="today-row-time">${minToTime(slot.start)}</div><div class="today-row-text">${minToTime(slot.start)}〜${minToTime(slot.end)}</div></div>`).join('')
+    : '<div class="today-empty">30分以上の空き時間はありません</div>';
+
+  list.innerHTML = `
+    <div class="today-summary">
+      <div class="today-summary-date">${dateLabel}</div>
+      <div class="today-summary-title">${nextEvent ? esc(nextEvent.title || 'Untitled') : '次の予定はありません'}</div>
+      <div class="today-summary-meta">${nextEvent ? `${minToTime(nextEvent.start)}〜${minToTime(nextEvent.end)}` : '今日は少し余白があります'}</div>
+    </div>
+    <section class="today-section"><div class="today-section-title">今日の予定</div>${eventRows}</section>
+    <section class="today-section"><div class="today-section-title">リマインダー</div>${reminderRows}</section>
+    <section class="today-section"><div class="today-section-title">TODO</div>${todoRows}</section>
+    <section class="today-section"><div class="today-section-title">空き時間</div>${freeRows}</section>
+  `;
+}
+
 function renderEvents(){
   document.querySelectorAll('.ev-focus,.ev-nonfocus-wrap,.ev-nonfocus-bar,.ev-nonfocus-label').forEach(e=>e.remove());
   allVisibleEvents().forEach(ev=>{
@@ -3324,6 +3420,33 @@ function closeDrawer(){ document.getElementById('drawer').classList.remove('open
 document.getElementById('menuBtn').addEventListener('click', openDrawer);
 document.getElementById('drawerClose').addEventListener('click', closeDrawer);
 document.getElementById('drawerOverlay').addEventListener('click', closeDrawer);
+
+function closeTodayPanel() {
+  const panel = document.getElementById('todayPanel');
+  panel.classList.remove('open');
+  panel.setAttribute('aria-hidden', 'true');
+}
+
+function openTodayPanel() {
+  document.getElementById('taskPanel').classList.remove('open');
+  document.getElementById('todoPanel').classList.remove('open');
+  document.getElementById('selfMessagePanel').classList.remove('open');
+  const panel = document.getElementById('todayPanel');
+  panel.classList.add('open');
+  panel.setAttribute('aria-hidden', 'false');
+  renderTodayPanel();
+}
+
+document.getElementById('drawerToday').addEventListener('click', () => {
+  closeDrawer();
+  openTodayPanel();
+});
+['click', 'touchend'].forEach(eventName => {
+  document.getElementById('todayPanelClose').addEventListener(eventName, event => {
+    if (eventName === 'touchend') event.preventDefault();
+    closeTodayPanel();
+  }, { passive: false });
+});
 
 document.getElementById('drawerSettings').addEventListener('click',()=>{ closeDrawer(); openSettingsModal(); });
 document.getElementById('drawerReminder').addEventListener('click',()=>{ closeDrawer(); document.getElementById('taskPanel').classList.toggle('open'); renderTaskList(); });
