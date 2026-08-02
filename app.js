@@ -555,7 +555,6 @@ function commitScheduleChange(options = {}) {
   if (task) renderTaskList();
   if (self) renderSelfMessagePanel();
   if (banner) updateSelfMessageBanner();
-  renderTodayPanelIfOpen();
 }
 
 function issueEventId() {
@@ -960,173 +959,6 @@ function allVisibleEvents(){
     else { result.push(ev); }
   });
   return result;
-}
-
-function getTodayEvents(){
-  const dk = todayStr();
-  return allVisibleEvents()
-    .filter(ev => ev.dateKey === dk)
-    .sort((a, b) => (a.start || 0) - (b.start || 0));
-}
-
-function getNextTodayEvent(dayEvents = getTodayEvents()){
-  const now = new Date();
-  const curMin = now.getHours() * 60 + now.getMinutes();
-  return dayEvents.find(ev => (ev.end || ev.start || 0) >= curMin) || null;
-}
-
-function getActiveReminderItems(limit = 4){
-  return tasks
-    .filter(task => !task.done)
-    .filter(task => task.datetime || task.snoozedUntil)
-    .sort((a, b) => new Date(getTaskNotifyDateTime(a)) - new Date(getTaskNotifyDateTime(b)))
-    .slice(0, limit);
-}
-
-function getActiveTodoItems(limit = 5){
-  return todos
-    .filter(todo => !todo.done)
-    .sort((a, b) => {
-      if (a.deadline && b.deadline) return new Date(a.deadline) - new Date(b.deadline);
-      if (a.deadline) return -1;
-      if (b.deadline) return 1;
-      return (a.id || 0) - (b.id || 0);
-    })
-    .slice(0, limit);
-}
-
-function getTodayFreeSlots(dayEvents = getTodayEvents()){
-  const now = new Date();
-  const curMin = now.getHours() * 60 + now.getMinutes();
-  const visibleStart = Math.max((settings.timeStart || 0) * 60, curMin);
-  const visibleEnd = (settings.timeEnd || 24) * 60;
-  if (visibleStart >= visibleEnd) return [];
-
-  const busy = dayEvents
-    .map(ev => ({
-      start: Math.max(visibleStart, Number(ev.start) || 0),
-      end: Math.min(visibleEnd, Number(ev.end) || Number(ev.start) || 0)
-    }))
-    .filter(slot => slot.end > visibleStart && slot.start < visibleEnd && slot.end > slot.start)
-    .sort((a, b) => a.start - b.start);
-
-  const merged = [];
-  busy.forEach(slot => {
-    const last = merged[merged.length - 1];
-    if (!last || slot.start > last.end) merged.push({ ...slot });
-    else last.end = Math.max(last.end, slot.end);
-  });
-
-  const free = [];
-  let cursor = visibleStart;
-  merged.forEach(slot => {
-    if (slot.start - cursor >= 30) free.push({ start: cursor, end: slot.start });
-    cursor = Math.max(cursor, slot.end);
-  });
-  if (visibleEnd - cursor >= 30) free.push({ start: cursor, end: visibleEnd });
-
-  return free.slice(0, 3);
-}
-
-function formatDateTimeShort(value){
-  if (!value) return '';
-  const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) return '';
-  const dk = dateKey(dt);
-  const time = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
-  return dk === todayStr() ? time : `${dt.getMonth()+1}/${dt.getDate()} ${time}`;
-}
-
-function renderTodayPanelIfOpen(){
-  const panel = document.getElementById('todayPanel');
-  if (panel?.classList.contains('open')) renderTodayPanel();
-}
-
-function openTodayPanel(){
-  document.getElementById('todayPanel').classList.add('open');
-  renderTodayPanel();
-}
-
-function closeTodayPanel(){
-  document.getElementById('todayPanel').classList.remove('open');
-}
-
-function renderTodayPanel(){
-  const list = document.getElementById('todayList');
-  if (!list) return;
-
-  const dayEvents = getTodayEvents();
-  const nextEvent = getNextTodayEvent(dayEvents);
-  const reminders = getActiveReminderItems(4);
-  const activeTodos = getActiveTodoItems(5);
-  const freeSlots = getTodayFreeSlots(dayEvents);
-  const today = new Date();
-  const dateLabel = `${today.getMonth()+1}/${today.getDate()} (${DOW[today.getDay()]})`;
-
-  list.innerHTML = `
-    <div class="today-hero">
-      <div class="today-hero-label">${dateLabel}</div>
-      <div class="today-hero-main">${nextEvent ? esc(nextEvent.title || 'Untitled') : '次の予定はありません'}</div>
-      <div class="today-hero-sub">${nextEvent ? `${minToTime(nextEvent.start)}〜${minToTime(nextEvent.end)}` : '今日は少し余白があります'}</div>
-    </div>
-    ${renderTodaySection('今日の予定', dayEvents, renderTodayEventRow, '今日の予定はありません')}
-    ${renderTodaySection('リマインダー', reminders, renderTodayReminderRow, '未完了リマインダーはありません')}
-    ${renderTodaySection('TODO', activeTodos, renderTodayTodoRow, '未完了TODOはありません')}
-    ${renderTodaySection('空き時間', freeSlots, renderTodayFreeSlotRow, '表示範囲内の空き時間はありません')}
-  `;
-}
-
-function renderTodaySection(title, items, renderer, emptyText){
-  const rows = items.length
-    ? items.map(renderer).join('')
-    : `<div class="today-empty">${emptyText}</div>`;
-  return `<section class="today-section"><div class="today-section-title">${title}</div>${rows}</section>`;
-}
-
-function renderTodayEventRow(ev){
-  return `
-    <div class="today-row">
-      <span class="today-dot" style="background:${esc(validEventColor(ev.color))}"></span>
-      <div class="today-row-text">${esc(ev.title || 'Untitled')}</div>
-      <div class="today-row-meta">${minToTime(ev.start)}〜${minToTime(ev.end)}</div>
-    </div>
-  `;
-}
-
-function renderTodayReminderRow(task){
-  const when = formatDateTimeShort(getTaskNotifyDateTime(task));
-  return `
-    <div class="today-row">
-      <div class="today-row-time">${esc(when || '--:--')}</div>
-      <div class="today-row-text">${esc(task.text || 'Reminder')}</div>
-      ${task.note ? `<div class="today-row-meta">${esc(task.note)}</div>` : ''}
-    </div>
-  `;
-}
-
-function renderTodayTodoRow(todo){
-  const deadline = todo.deadline ? formatDateTimeShort(todo.deadline) : '';
-  return `
-    <div class="today-row">
-      <div class="today-row-time">TODO</div>
-      <div class="today-row-text">${esc(todo.text || 'TODO')}</div>
-      ${deadline ? `<div class="today-row-meta">期限 ${esc(deadline)}</div>` : ''}
-    </div>
-  `;
-}
-
-function renderTodayFreeSlotRow(slot){
-  return `
-    <div class="today-row">
-      <div class="today-row-time">${minToTime(slot.start)}</div>
-      <div class="today-row-text">${minToTime(slot.start)}〜${minToTime(slot.end)}</div>
-      <div class="today-row-meta">${Math.round((slot.end - slot.start) / 60 * 10) / 10}h free</div>
-    </div>
-  `;
-}
-
-function validEventColor(color){
-  return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#111110';
 }
 
 function renderEvents(){
@@ -2385,7 +2217,6 @@ function renderTodoList(){
 
   if(active.length === 0 && done.length === 0){
     list.innerHTML = '<div style="color:var(--text-faint);font-size:12px;text-align:center;padding:24px 0;">TODOはありません</div>';
-    renderTodayPanelIfOpen();
     return;
   }
 
@@ -2424,8 +2255,6 @@ function renderTodoList(){
       toggle.textContent = `${doneOpen ? '▼' : '▶'} 完了済み（${done.length}件）`;
     });
   }
-
-  renderTodayPanelIfOpen();
 }
 
 function makeTodoCard(t, isDone){
@@ -2725,7 +2554,6 @@ function renderTaskList(){
 
   if(active.length === 0 && done.length === 0){
     list.innerHTML = '<div style="color:var(--text-faint);font-size:12px;text-align:center;padding:24px 0;">リマインダーはありません</div>';
-    renderTodayPanelIfOpen();
     return;
   }
 
@@ -2758,8 +2586,6 @@ function renderTaskList(){
       toggle.textContent = `${doneOpen ? '▼' : '▶'} 完了済み（${done.length}件）`;
     });
   }
-
-  renderTodayPanelIfOpen();
 }
 
 function getTaskNotifyDateTime(t) {
@@ -3497,8 +3323,6 @@ document.getElementById('menuBtn').addEventListener('click', openDrawer);
 document.getElementById('drawerClose').addEventListener('click', closeDrawer);
 document.getElementById('drawerOverlay').addEventListener('click', closeDrawer);
 
-document.getElementById('drawerToday').addEventListener('click',()=>{ closeDrawer(); document.getElementById('todayPanel').classList.toggle('open'); renderTodayPanel(); });
-document.getElementById('todayPanelClose').addEventListener('click', closeTodayPanel);
 document.getElementById('drawerSettings').addEventListener('click',()=>{ closeDrawer(); openSettingsModal(); });
 document.getElementById('drawerReminder').addEventListener('click',()=>{ closeDrawer(); document.getElementById('taskPanel').classList.toggle('open'); renderTaskList(); });
 document.getElementById('drawerBulkNotif').addEventListener('click',()=>{ closeDrawer(); openBulkNotifModal(); });
