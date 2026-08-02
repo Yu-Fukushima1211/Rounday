@@ -1021,7 +1021,7 @@ function validEventColor(color) {
   return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#111110';
 }
 
-function renderTodayPanel() {
+function renderTodayPanelLegacy() {
   const list = document.getElementById('todayList');
   if (!list) return;
 
@@ -1057,6 +1057,112 @@ function renderTodayPanel() {
     <section class="today-section"><div class="today-section-title">TODO</div>${todoRows}</section>
     <section class="today-section"><div class="today-section-title">空き時間</div>${freeRows}</section>
   `;
+}
+
+let todayPanelOffset = 0;
+
+function getTodayPanelDate() {
+  return addDays(stripTime(new Date()), todayPanelOffset);
+}
+
+function getEventsForTodayPanel(targetDate) {
+  const targetKey = dateKey(targetDate);
+  return allVisibleEvents()
+    .filter(event => event.dateKey === targetKey)
+    .sort((a, b) => (a.start || 0) - (b.start || 0));
+}
+
+function getRemindersForTodayPanel(targetDate) {
+  const targetKey = dateKey(targetDate);
+  return tasks
+    .filter(task => task.snoozedUntil || task.datetime)
+    .filter(task => dateKey(new Date(getTaskNotifyDateTime(task))) === targetKey)
+    .sort((a, b) => new Date(getTaskNotifyDateTime(a)) - new Date(getTaskNotifyDateTime(b)));
+}
+
+function getTodosForTodayPanel(targetDate) {
+  const targetKey = dateKey(targetDate);
+  return todos
+    .filter(todo => {
+      const deadlineKey = todo.deadline ? dateKey(new Date(todo.deadline)) : null;
+      return todo.originEventDateKey === targetKey || deadlineKey === targetKey;
+    })
+    .sort((a, b) => (a.deadline || '').localeCompare(b.deadline || '') || a.id - b.id);
+}
+
+function getFreeSlotsForTodayPanel(dayEvents, targetDate) {
+  const isToday = dateKey(targetDate) === todayStr();
+  const now = new Date();
+  const start = isToday
+    ? Math.max(settings.timeStart * 60, now.getHours() * 60 + now.getMinutes())
+    : settings.timeStart * 60;
+  const end = settings.timeEnd * 60;
+  if (start >= end) return [];
+
+  const busy = dayEvents
+    .map(event => ({ start: Math.max(start, event.start), end: Math.min(end, event.end) }))
+    .filter(slot => slot.end > slot.start)
+    .sort((a, b) => a.start - b.start);
+  const free = [];
+  let cursor = start;
+  busy.forEach(slot => {
+    if (slot.start - cursor >= 30) free.push({ start: cursor, end: slot.start });
+    cursor = Math.max(cursor, slot.end);
+  });
+  if (end - cursor >= 30) free.push({ start: cursor, end });
+  return free.slice(0, 3);
+}
+
+function renderTodayPanel() {
+  const list = document.getElementById('todayList');
+  if (!list) return;
+
+  const targetDate = getTodayPanelDate();
+  const isToday = todayPanelOffset === 0;
+  const events = getEventsForTodayPanel(targetDate);
+  const reminders = getRemindersForTodayPanel(targetDate);
+  const panelTodos = getTodosForTodayPanel(targetDate);
+  const freeSlots = getFreeSlotsForTodayPanel(events, targetDate);
+  const now = new Date();
+  const currentMinute = now.getHours() * 60 + now.getMinutes();
+  const nextEvent = isToday ? events.find(event => event.end >= currentMinute) : events[0];
+  const dayName = isToday ? '今日' : '昨日';
+  const dateLabel = `${targetDate.getMonth() + 1}/${targetDate.getDate()}（${DOW[targetDate.getDay()]}）`;
+  const eventRows = events.length
+    ? events.map(event => `<div class="today-row"><span class="today-dot" style="background:${validEventColor(event.color)}"></span><div class="today-row-text">${esc(event.title || 'Untitled')}</div><div class="today-row-meta">${minToTime(event.start)}〜${minToTime(event.end)}</div></div>`).join('')
+    : `<div class="today-empty">${dayName}の予定はありません</div>`;
+  const reminderRows = reminders.length
+    ? reminders.map(task => `<div class="today-row"><div class="today-row-time">${minToTime(new Date(getTaskNotifyDateTime(task)).getHours() * 60 + new Date(getTaskNotifyDateTime(task)).getMinutes())}</div><div class="today-row-text">${esc(task.text || 'Reminder')}</div></div>`).join('')
+    : `<div class="today-empty">${dayName}のリマインダーはありません</div>`;
+  const todoRows = panelTodos.length
+    ? panelTodos.map(todo => `<div class="today-row"><div class="today-row-time">${todo.done ? '完了' : 'TODO'}</div><div class="today-row-text">${esc(todo.text || 'TODO')}</div>${todo.deadline ? `<div class="today-row-meta">期限 ${formatTodayDateTime(todo.deadline)}</div>` : ''}</div>`).join('')
+    : `<div class="today-empty">${dayName}に紐づくTODOはありません</div>`;
+  const freeRows = freeSlots.length
+    ? freeSlots.map(slot => `<div class="today-row"><div class="today-row-time">${minToTime(slot.start)}</div><div class="today-row-text">${minToTime(slot.start)}〜${minToTime(slot.end)}</div></div>`).join('')
+    : '<div class="today-empty">30分以上の空き時間はありません</div>';
+
+  list.innerHTML = `
+    <div class="today-tabs" role="tablist">
+      <button class="today-tab${todayPanelOffset === -1 ? ' active' : ''}" data-offset="-1" role="tab" aria-selected="${todayPanelOffset === -1}">昨日</button>
+      <button class="today-tab${todayPanelOffset === 0 ? ' active' : ''}" data-offset="0" role="tab" aria-selected="${todayPanelOffset === 0}">今日</button>
+    </div>
+    <div class="today-summary">
+      <div class="today-summary-date">${dateLabel}</div>
+      <div class="today-summary-title">${nextEvent ? esc(nextEvent.title || 'Untitled') : `${dayName}の予定はありません`}</div>
+      <div class="today-summary-meta">${nextEvent ? `${minToTime(nextEvent.start)}〜${minToTime(nextEvent.end)}` : isToday ? '今日は少し余白があります' : '予定の振り返り'}</div>
+    </div>
+    <section class="today-section"><div class="today-section-title">${dayName}の予定</div>${eventRows}</section>
+    <section class="today-section"><div class="today-section-title">リマインダー</div>${reminderRows}</section>
+    <section class="today-section"><div class="today-section-title">TODO</div>${todoRows}</section>
+    <section class="today-section"><div class="today-section-title">空き時間</div>${freeRows}</section>
+  `;
+
+  list.querySelectorAll('.today-tab').forEach(button => {
+    button.addEventListener('click', () => {
+      todayPanelOffset = Number(button.dataset.offset);
+      renderTodayPanel();
+    });
+  });
 }
 
 function renderEvents(){
@@ -3431,6 +3537,7 @@ function openTodayPanel() {
   document.getElementById('taskPanel').classList.remove('open');
   document.getElementById('todoPanel').classList.remove('open');
   document.getElementById('selfMessagePanel').classList.remove('open');
+  todayPanelOffset = 0;
   const panel = document.getElementById('todayPanel');
   panel.classList.add('open');
   panel.setAttribute('aria-hidden', 'false');
