@@ -180,6 +180,8 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
 .ctx-sep { height: 1px; background: var(--border); margin: 2px 0; }
 
 /* TASK PANEL */
+#todayPanel { display: none; position: fixed; right: 0; top: 0; bottom: 0; width: min(340px, 92vw); background: var(--surface); border-left: 1px solid var(--border-strong); z-index: 405; flex-direction: column; box-shadow: -4px 0 16px rgba(0,0,0,0.07); }
+#todayPanel.open { display: flex; }
 #taskPanel { display: none; position: fixed; right: 0; top: 0; bottom: 0; width: min(300px, 90vw); background: var(--surface); border-left: 1px solid var(--border-strong); z-index: 400; flex-direction: column; box-shadow: -4px 0 16px rgba(0,0,0,0.07); }
 #taskPanel.open { display: flex; }
 .panel-header { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
@@ -285,6 +287,19 @@ body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); co
 
 .panel-add-btn { margin: 0 12px 12px; padding: 8px; border: 1px dashed var(--border-strong); background: none; border-radius: var(--radius-btn); cursor: pointer; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: var(--text-muted); transition: all 0.12s; }
 .panel-add-btn:hover { background: var(--border); }
+
+.today-hero { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.today-hero-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+.today-hero-main { font-size: 16px; font-weight: 600; line-height: 1.35; }
+.today-hero-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); }
+.today-section { display: flex; flex-direction: column; gap: 6px; }
+.today-section-title { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 0; }
+.today-row { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 9px 10px; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; row-gap: 2px; align-items: baseline; min-width: 0; }
+.today-row-time { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+.today-row-text { font-size: 12px; font-weight: 500; line-height: 1.35; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-row-meta { grid-column: 2; font-size: 10px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-empty { color: var(--text-faint); font-size: 12px; text-align: center; padding: 12px 0; border: 1px dashed var(--border); border-radius: 4px; }
+.today-dot { width: 8px; height: 8px; border-radius: 50%; align-self: center; }
 
 /* TASK MODAL */
 #taskOverlay .modal { width: 320px; }
@@ -826,7 +841,7 @@ body {
   background: radial-gradient(circle at 18% -10%, rgba(10, 132, 255, 0.14), transparent 30%), var(--bg);
 }
 
-#header, #toolbar, .modal, .cal-picker, #drawer, #taskPanel, #todoPanel, #selfMessagePanel, .ctx-menu, #evDetail, #selfMessageBanner, #schedulingBanner {
+#header, #toolbar, .modal, .cal-picker, #drawer, #todayPanel, #taskPanel, #todoPanel, #selfMessagePanel, .ctx-menu, #evDetail, #selfMessageBanner, #schedulingBanner {
   backdrop-filter: blur(22px) saturate(170%);
   -webkit-backdrop-filter: blur(22px) saturate(170%);
 }
@@ -908,14 +923,14 @@ body {
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn-primary:hover { background: color-mix(in srgb, var(--accent) 86%, #000); }
 
-#drawer, #taskPanel, #todoPanel, #selfMessagePanel { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow-panel); }
+#drawer, #todayPanel, #taskPanel, #todoPanel, #selfMessagePanel { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow-panel); }
 #drawer { width: min(310px, 88vw); }
 .drawer-body, .panel-body { padding: 14px; gap: 10px; }
 .drawer-item { min-height: 48px; padding: 13px 14px; border-radius: 14px; background: var(--surface-raised); border: 1px solid var(--border); font-size: 14px; font-weight: 600; }
 .drawer-item-icon { color: var(--accent); }
 .drawer-sep { background: transparent; margin: 2px 0; }
 
-.task-card, .todo-card, .self-message-card { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-soft); padding: 12px 14px; }
+.task-card, .todo-card, .self-message-card, .today-hero, .today-row { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-soft); padding: 12px 14px; }
 .task-card-text, .todo-card-text { font-size: 13.5px; font-weight: 700; }
 .task-check-btn, .todo-check-btn, .self-message-check-btn { border-color: var(--border-strong); background: color-mix(in srgb, var(--surface-solid) 70%, transparent); }
 .task-check-btn.checked, .todo-check-btn.checked, .self-message-check-btn.checked { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 4px var(--surface-solid); }
@@ -1048,6 +1063,7 @@ body {
   }
 
   #drawer,
+  #todayPanel,
   #taskPanel,
   #todoPanel,
   #selfMessagePanel {
