@@ -1,4 +1,4 @@
-const CACHE = 'Rounday-20260704-v2';
+const CACHE = 'Rounday-20260803-v3';
 const FILES = [
   './',
   './index.html',
@@ -8,7 +8,7 @@ const FILES = [
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(FILES))
+    caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())
   );
 });
 
@@ -20,7 +20,7 @@ self.addEventListener('activate', event => {
           if (key !== CACHE) return caches.delete(key);
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
 });
 

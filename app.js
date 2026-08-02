@@ -106,16 +106,18 @@ function normalizeSettings(rawSettings) {
 
   normalized.weekStart = normalized.weekStart === 1 ? 1 : 0;
 
-  if (!Number.isFinite(Number(normalized.timeStart))) {
-    normalized.timeStart = defaults.timeStart;
-  } else {
-    normalized.timeStart = Number(normalized.timeStart);
-  }
+  const savedTimeStart = Number(normalized.timeStart);
+  const savedTimeEnd = Number(normalized.timeEnd);
+  normalized.timeStart = Number.isInteger(savedTimeStart) && savedTimeStart >= 0 && savedTimeStart <= 23
+    ? savedTimeStart
+    : defaults.timeStart;
+  normalized.timeEnd = Number.isInteger(savedTimeEnd) && savedTimeEnd >= 1 && savedTimeEnd <= 24
+    ? savedTimeEnd
+    : defaults.timeEnd;
 
-  if (!Number.isFinite(Number(normalized.timeEnd))) {
+  if (normalized.timeEnd <= normalized.timeStart) {
+    normalized.timeStart = defaults.timeStart;
     normalized.timeEnd = defaults.timeEnd;
-  } else {
-    normalized.timeEnd = Number(normalized.timeEnd);
   }
 
   if (!['ios-light', 'ios-dark'].includes(normalized.theme)) {
@@ -3434,9 +3436,19 @@ document.getElementById('settingsTimeEnd').addEventListener('change', function()
 document.getElementById('settingsExport').addEventListener('click', () => exportData());
 document.getElementById('settingsImportFile').addEventListener('change', function() { importData(this.files[0]); this.value=''; });
 
-document.getElementById('settingsClose').addEventListener('click',()=>{ document.getElementById('settingsOverlay').classList.remove('open'); });
-document.getElementById('settingsDone').addEventListener('click',()=>{ document.getElementById('settingsOverlay').classList.remove('open'); });
-document.getElementById('settingsOverlay').addEventListener('click',e=>{ if(e.target.id==='settingsOverlay') document.getElementById('settingsOverlay').classList.remove('open'); });
+function closeSettingsModal() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+}
+
+['settingsClose', 'settingsDone'].forEach(id => {
+  const button = document.getElementById(id);
+  button.addEventListener('click', closeSettingsModal);
+  button.addEventListener('touchend', event => {
+    event.preventDefault();
+    closeSettingsModal();
+  }, { passive: false });
+});
+document.getElementById('settingsOverlay').addEventListener('click',e=>{ if(e.target.id==='settingsOverlay') closeSettingsModal(); });
 // ── テーマ適用 ──
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
