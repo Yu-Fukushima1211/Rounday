@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Jost:wght@300;400;500&family=Zen+Kaku+Gothic+New:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260803-3">
+<link rel="stylesheet" href="styles.css?v=20260803-4">
 </head>
 <body>
 
@@ -28,7 +28,12 @@
     <button class="nav-btn" id="nextBtn">&#8594;</button>
     <button class="cal-open-btn" id="calOpenBtn">2026/05</button>
   </div>
-  <button class="header-icon-btn" id="menuBtn" title="メニュー" style="margin-left:auto;">
+  <button class="header-icon-btn" id="searchBtn" title="検索" aria-label="検索" style="margin-left:auto;">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+      <circle cx="10.8" cy="10.8" r="6.2"/><path d="m16 16 4.2 4.2"/>
+    </svg>
+  </button>
+  <button class="header-icon-btn" id="menuBtn" title="メニュー" aria-label="メニュー">
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
       <line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/>
     </svg>
@@ -44,6 +49,20 @@
   <div id="grid">
     <div id="time-col"></div>
     <div id="days-wrap"></div>
+  </div>
+</div>
+
+<!-- SEARCH -->
+<div class="overlay" id="searchOverlay">
+  <div class="modal search-modal">
+    <div class="modal-header">
+      <span class="modal-title">検索</span>
+      <button class="modal-close" id="searchClose" aria-label="検索を閉じる">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input class="search-input" id="searchInput" type="search" placeholder="予定・リマインダー・TODOを検索" autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
   </div>
 </div>
 
@@ -760,6 +779,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260803-3"></script>
+<script src="app.js?v=20260803-4"></script>
 </body>
 </html>

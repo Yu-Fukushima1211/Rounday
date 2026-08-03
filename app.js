@@ -3555,6 +3555,99 @@ document.getElementById('drawerToday').addEventListener('click', () => {
   }, { passive: false });
 });
 
+function formatSearchDate(value) {
+  if (!value) return '日付なし';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.replace(/-/g, '/');
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '日付なし';
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function getSearchResults(query) {
+  const keyword = query.trim().toLocaleLowerCase();
+  if (!keyword) return [];
+  const includesKeyword = value => String(value || '').toLocaleLowerCase().includes(keyword);
+  const results = [];
+
+  events.forEach(event => {
+    if (!includesKeyword(event.title) && !includesKeyword(event.memo)) return;
+    results.push({ type: '予定', title: event.title || 'Untitled', meta: formatSearchDate(event.dateKey), item: event });
+  });
+  tasks.forEach(task => {
+    if (!includesKeyword(task.text) && !includesKeyword(task.note)) return;
+    results.push({ type: 'リマインダー', title: task.text || 'Reminder', meta: formatSearchDate(getTaskNotifyDateTime(task)), item: task });
+  });
+  todos.forEach(todo => {
+    if (!includesKeyword(todo.text)) return;
+    results.push({ type: 'TODO', title: todo.text || 'TODO', meta: todo.deadline ? `期限 ${formatSearchDate(todo.deadline)}` : '期限なし', item: todo });
+  });
+
+  return results.slice(0, 30);
+}
+
+function closeSearchModal() {
+  document.getElementById('searchOverlay').classList.remove('open');
+}
+
+function openSearchModal() {
+  const input = document.getElementById('searchInput');
+  input.value = '';
+  renderSearchResults('');
+  document.getElementById('searchOverlay').classList.add('open');
+  setTimeout(() => input.focus(), 0);
+}
+
+function openSearchResult(result) {
+  closeSearchModal();
+  if (result.type === '予定') {
+    anchorDate = stripTime(new Date(`${result.item.dateKey}T00:00:00`));
+    if (numDays === 7) anchorDate = getWeekStart(anchorDate);
+    buildGrid();
+    return;
+  }
+  if (result.type === 'リマインダー') {
+    document.getElementById('taskPanel').classList.add('open');
+    renderTaskList();
+    return;
+  }
+  document.getElementById('todoPanel').classList.add('open');
+  renderTodoList();
+}
+
+function renderSearchResults(query) {
+  const list = document.getElementById('searchResults');
+  const results = getSearchResults(query);
+  if (!query.trim()) {
+    list.innerHTML = '<div class="search-empty">予定・リマインダー・TODOを検索できます</div>';
+    return;
+  }
+  if (!results.length) {
+    list.innerHTML = '<div class="search-empty">一致する項目はありません</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  results.forEach(result => {
+    const button = document.createElement('button');
+    button.className = 'search-result';
+    button.innerHTML = `<span class="search-result-type">${esc(result.type)}</span><span class="search-result-title">${esc(result.title)}</span><span class="search-result-meta">${esc(result.meta)}</span>`;
+    button.addEventListener('click', () => openSearchResult(result));
+    list.appendChild(button);
+  });
+}
+
+document.getElementById('searchBtn').addEventListener('click', openSearchModal);
+document.getElementById('searchInput').addEventListener('input', event => renderSearchResults(event.target.value));
+['click', 'touchend'].forEach(eventName => {
+  document.getElementById('searchClose').addEventListener(eventName, event => {
+    if (eventName === 'touchend') event.preventDefault();
+    closeSearchModal();
+  }, { passive: false });
+});
+document.getElementById('searchOverlay').addEventListener('click', event => {
+  if (event.target.id === 'searchOverlay') closeSearchModal();
+});
+
 document.getElementById('drawerSettings').addEventListener('click',()=>{ closeDrawer(); openSettingsModal(); });
 document.getElementById('drawerReminder').addEventListener('click',()=>{ closeDrawer(); document.getElementById('taskPanel').classList.toggle('open'); renderTaskList(); });
 document.getElementById('drawerBulkNotif').addEventListener('click',()=>{ closeDrawer(); openBulkNotifModal(); });
