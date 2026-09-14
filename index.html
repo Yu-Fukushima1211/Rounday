@@ -746,6 +746,21 @@
         </div>
       </div>
       <hr class="section-divider">  
+      <div class="settings-section-label">紐づけ候補</div>
+      <div class="field">
+        <label>候補を残す期間</label>
+        <select id="linkCandidateDays">
+          <option value="30">最後の予定から30日</option>
+          <option value="45">最後の予定から45日</option>
+          <option value="60">最後の予定から60日</option>
+          <option value="90">最後の予定から90日</option>
+        </select>
+      </div>
+      <div class="field" style="flex-direction:row; align-items:center; gap:8px;">
+        <input type="checkbox" id="includeSingleEventsInLinks" style="width:auto;">
+        <label style="text-transform:none; font-size:12px; color:var(--text);">単発予定も候補に入れる</label>
+      </div>
+      <hr class="section-divider">  
       <div class="settings-section-label">週の開始曜日</div>
       <div class="type-toggle" style="margin-bottom:4px;">
         <button class="type-btn" id="weekStartSun" data-ws="0">日曜始まり</button>
@@ -779,6 +794,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260803-4"></script>
+<script src="app.js?v=20260803-5"></script>
 </body>
 </html>

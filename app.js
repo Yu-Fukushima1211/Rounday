@@ -95,7 +95,9 @@ function normalizeSettings(rawSettings) {
     reminderSnoozeDefault: {
       type: 'day',
       hours: 3
-    }
+    },
+    linkCandidateDays: 45,
+    includeSingleEventsInLinks: true
   };
 
   const src = isPlainObject(rawSettings) ? rawSettings : {};
@@ -131,6 +133,11 @@ function normalizeSettings(rawSettings) {
   normalized.morningNotif = !!normalized.morningNotif;
   normalized.morningNotifH = normalizeHour(normalized.morningNotifH, defaults.morningNotifH);
   normalized.morningNotifM = normalizeMinute(normalized.morningNotifM, defaults.morningNotifM);
+  normalized.linkCandidateDays = normalizeLinkCandidateDays(
+    normalized.linkCandidateDays,
+    defaults.linkCandidateDays
+  );
+  normalized.includeSingleEventsInLinks = normalized.includeSingleEventsInLinks !== false;
 
   normalized.selfMessageSnoozeDefault = normalizeSnoozeDefault(
     normalized.selfMessageSnoozeDefault,
@@ -143,6 +150,11 @@ function normalizeSettings(rawSettings) {
   );
 
   return normalized;
+}
+
+function normalizeLinkCandidateDays(value, fallback) {
+  const n = Number(value);
+  return [30, 45, 60, 90].includes(n) ? n : fallback;
 }
 
 function normalizeSnoozeDefault(rawDefault, fallback) {
@@ -687,8 +699,87 @@ function isInvalidRepeatEvent(ev) {
     (!Array.isArray(ev.repeat.weekdays) || ev.repeat.weekdays.length === 0)
   );
 }
-function getSelectableEvents() {
-  return events.filter(ev => !isInvalidRepeatEvent(ev));
+function parseDateKey(dateKeyValue) {
+  if (!dateKeyValue) return null;
+  const d = new Date(dateKeyValue + 'T00:00:00');
+  return Number.isNaN(d.getTime()) ? null : stripTime(d);
+}
+function eventOccursOnDate(ev, date) {
+  const dk = dateKey(date);
+
+  if (!ev.repeat || ev.repeat.type === 'none') {
+    return ev.dateKey === dk;
+  }
+
+  const repeat = ev.repeat;
+  if (!repeat.from || !repeat.to || dk < repeat.from || dk > repeat.to) return false;
+  if ((ev.excludeDates || []).includes(dk)) return false;
+
+  const from = parseDateKey(repeat.from);
+  if (!from) return false;
+
+  const dow = date.getDay();
+
+  if (repeat.type === 'weekly') {
+    return (repeat.weekdays || []).includes(dow);
+  }
+
+  if (repeat.type === 'nweekly') {
+    const diffDays = Math.round((stripTime(date) - from) / 86400000);
+    const weekNum = Math.floor(diffDays / 7);
+    return weekNum % Math.max(1, Number(repeat.interval) || 1) === 0
+      && (repeat.weekdays || []).includes(dow);
+  }
+
+  if (repeat.type === 'monthly_dow' && dow === repeat.monthDow) {
+    const weekOfMonth = Math.ceil(date.getDate() / 7);
+    const weeks = repeat.monthWeeks && repeat.monthWeeks.length > 0
+      ? repeat.monthWeeks
+      : repeat.monthWeek ? [repeat.monthWeek] : [];
+    return weeks.includes(weekOfMonth);
+  }
+
+  return false;
+}
+function getEventLastOccurrenceDate(ev) {
+  if (!ev.repeat || ev.repeat.type === 'none') {
+    return parseDateKey(ev.dateKey);
+  }
+
+  const repeatTo = parseDateKey(ev.repeat.to);
+  const repeatFrom = parseDateKey(ev.repeat.from);
+  if (!repeatTo || !repeatFrom || repeatTo < repeatFrom) return null;
+
+  for (let d = new Date(repeatTo); d >= repeatFrom; d = addDays(d, -1)) {
+    if (eventOccursOnDate(ev, d)) return d;
+  }
+
+  return null;
+}
+function isEventLinkCandidate(ev, options = {}) {
+  if (isInvalidRepeatEvent(ev)) return false;
+
+  const keepIds = new Set((options.keepIds || []).filter(v => v !== '' && v != null).map(String));
+  const evId = String(ev.id);
+  const groupId = String(ev.linkedGroupId || ev.id);
+  const baseId = ev._baseId == null ? '' : String(ev._baseId);
+  if (keepIds.has(evId) || keepIds.has(groupId) || (baseId && keepIds.has(baseId))) return true;
+
+  const isSingle = !ev.repeat || ev.repeat.type === 'none';
+  if (isSingle && options.includeSingles !== true && settings.includeSingleEventsInLinks === false) {
+    return false;
+  }
+
+  if (options.includeExpired) return true;
+
+  const lastDate = getEventLastOccurrenceDate(ev);
+  if (!lastDate) return false;
+
+  const expiresAt = addDays(lastDate, settings.linkCandidateDays || 45);
+  return stripTime(new Date()) <= expiresAt;
+}
+function getSelectableEvents(options = {}) {
+  return events.filter(ev => isEventLinkCandidate(ev, options));
 }
 
 // ── 通知時刻セレクト初期化 ──
@@ -771,13 +862,13 @@ document.getElementById('fNotifEnabled').addEventListener('change', function() {
   document.getElementById('notifFields').style.display = this.checked ? 'flex' : 'none';
 });
 
-function populateLinkedGroup(excludeId) {
+function populateLinkedGroup(excludeId, preselect) {
   const sel = document.getElementById('fLinkedGroup');
   sel.innerHTML = '<option value="">なし（新規グループ）</option>';
 
   const seen = new Set();
 
-  getSelectableEvents().forEach(ev => {
+  getSelectableEvents({ keepIds: [preselect] }).forEach(ev => {
     if (ev.id === excludeId) return;
 
     const gid = ev.linkedGroupId || ev.id;
@@ -1304,7 +1395,7 @@ document.querySelectorAll('[data-mw]').forEach(b=>b.classList.remove('active'));
   document.getElementById('fNotifH').value=defH;
   document.getElementById('fNotifM').value=Math.round((eMin%60)/5)*5;
   document.getElementById('fNotifMsg').value='';
-  populateLinkedGroup(null);
+  populateLinkedGroup(null, '');
   document.getElementById('fLinkedGroup').value='';
   setType('focus'); setColor(COLORS[0]);
   setSelTime('fSh','fSm',sMin); setSelTime('fEh','fEm',eMin);
@@ -1350,7 +1441,7 @@ document.querySelectorAll('[data-mw]').forEach(b=>{
     document.getElementById('fNotifM').value=Math.round((absMin%60)/5)*5;
   }
   document.getElementById('fNotifMsg').value=notif.message||'';
-  populateLinkedGroup(ev.id);
+  populateLinkedGroup(ev.id, ev.linkedGroupId || '');
   document.getElementById('fLinkedGroup').value=ev.linkedGroupId||'';
   // 詳細セクションを開いておく（編集時は全項目見えた方が便利）
   const detailSec = document.getElementById('detailSection');
@@ -1746,7 +1837,7 @@ function renderBulkEvList(){
   const dk=document.getElementById('bulkDate').value;
   const list=document.getElementById('bulkEvList');
   list.innerHTML='';
-  const dayEvs = getSelectableEvents().filter(ev => {
+  const dayEvs = getSelectableEvents({ includeExpired: true, includeSingles: true }).filter(ev => {
   // 通常予定
   if (ev.dateKey === dk) return true;
 
@@ -2561,11 +2652,11 @@ function formatOriginDateLabel(dateKeyValue){
   return `${d.getMonth()+1}/${d.getDate()}`;
 }
 
-function getEventsForOriginDate(originDateKey){
+function getEventsForOriginDate(originDateKey, options = {}){
   if(!originDateKey) return [];
   const seen = new Set();
   return allVisibleEvents()
-    .filter(ev => ev.dateKey === originDateKey && !isInvalidRepeatEvent(ev))
+    .filter(ev => ev.dateKey === originDateKey && isEventLinkCandidate(ev, options))
     .filter(ev => {
       const id = ev._baseId || ev.id;
       if(seen.has(id)) return false;
@@ -2595,7 +2686,7 @@ function populateTodoOriginEv(originDateKey, preselect){
   }
 
   sel.disabled = false;
-  getEventsForOriginDate(originDateKey).forEach(ev => {
+  getEventsForOriginDate(originDateKey, { keepIds: [preselect] }).forEach(ev => {
     const id = ev._baseId || ev.id;
     const o = document.createElement('option');
     o.value = id;
@@ -3054,7 +3145,7 @@ function populateEvLink(preselect){
   const sel = document.getElementById('tEvLink');
   sel.innerHTML = '<option value="">-- 選択しない --</option>';
 
-  getSelectableEvents().forEach(ev => {
+  getSelectableEvents({ keepIds: [preselect] }).forEach(ev => {
     const o = document.createElement('option');
     o.value = ev.id;
     o.textContent = ev.title + (ev.dateKey ? ' (' + ev.dateKey + ')' : '');
@@ -3711,6 +3802,16 @@ document.getElementById('morningNotifM').addEventListener('change', function() {
   scheduleAllNotifications();
 });
 
+document.getElementById('linkCandidateDays').addEventListener('change', function() {
+  settings.linkCandidateDays = normalizeLinkCandidateDays(this.value, 45);
+  saveSettings();
+});
+
+document.getElementById('includeSingleEventsInLinks').addEventListener('change', function() {
+  settings.includeSingleEventsInLinks = this.checked;
+  saveSettings();
+});
+
 
 function openSettingsModal() {
   // 週の開始曜日
@@ -3725,6 +3826,8 @@ function openSettingsModal() {
   document.getElementById('morningNotifFields').style.display = settings.morningNotif ? 'flex' : 'none';
   document.getElementById('morningNotifH').value = settings.morningNotifH || 8;
   document.getElementById('morningNotifM').value = settings.morningNotifM || 0;
+  document.getElementById('linkCandidateDays').value = settings.linkCandidateDays || 45;
+  document.getElementById('includeSingleEventsInLinks').checked = settings.includeSingleEventsInLinks !== false;
   // テーマボタンの状態を反映
   document.querySelectorAll('.theme-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === (settings.theme || 'ios-light'));
