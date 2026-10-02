@@ -1611,18 +1611,8 @@ function openCtx(id, x, y, dk){
     memoEl.style.display = 'none';
   }
 
-  // TODOボタンの表示制御
-  const evEl = document.querySelector(`[data-ev-id="${id}"]`);
-  const evDk = dk || evEl?.closest('.day-col')?.dataset.dateKey;
-  const todoBtn = document.getElementById('evDetailAddTodo');
-  if(evDk){
-    const startH = String(Math.floor(ev.start/60)).padStart(2,'0');
-    const startM = String(ev.start%60).padStart(2,'0');
-    const evStartDt = new Date(`${evDk}T${startH}:${startM}:00`);
-    todoBtn.style.display = evStartDt <= new Date() ? '' : 'none';
-  } else {
-    todoBtn.style.display = 'none';
-  }
+  // TODOは予定前から追加できる。
+  document.getElementById('evDetailAddTodo').style.display = '';
 
   document.getElementById('evDetailPanel').classList.add('open');
 }
