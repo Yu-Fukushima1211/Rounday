@@ -37,9 +37,22 @@ function showUpdateBanner(newSW) {
       font-family: 'DM Mono', monospace; font-size: 11px;
     ">更新する</button>
   `;
-  banner.querySelector('button').addEventListener('click', () => {
-    newSW.postMessage({ type: 'SKIP_WAITING' });
-    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+  const updateButton = banner.querySelector('button');
+  updateButton.type = 'button';
+  let updateRequested = false;
+  const activateUpdate = event => {
+    event.preventDefault();
+    if (updateRequested) return;
+    updateRequested = true;
+    updateButton.disabled = true;
+    updateButton.textContent = '更新中...';
+    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
+    navigator.serviceWorker.getRegistration().then(registration => {
+      (registration?.waiting || newSW)?.postMessage({ type: 'SKIP_WAITING' });
+    });
+  };
+  ['click', 'touchend'].forEach(eventName => {
+    updateButton.addEventListener(eventName, activateUpdate, { passive: false });
   });
   document.body.appendChild(banner);
 }
