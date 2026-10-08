@@ -46,10 +46,18 @@ function showUpdateBanner(newSW) {
     updateRequested = true;
     updateButton.disabled = true;
     updateButton.textContent = '更新中...';
-    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
+    let reloaded = false;
+    const reload = () => {
+      if (reloaded) return;
+      reloaded = true;
+      location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', reload, { once: true });
     navigator.serviceWorker.getRegistration().then(registration => {
       (registration?.waiting || newSW)?.postMessage({ type: 'SKIP_WAITING' });
     });
+    // iOSではcontrollerchangeが通知されないことがあるため、更新を待ち続けない。
+    setTimeout(reload, 1200);
   };
   ['click', 'touchend'].forEach(eventName => {
     updateButton.addEventListener(eventName, activateUpdate, { passive: false });
