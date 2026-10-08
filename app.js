@@ -1638,6 +1638,9 @@ function openCtx(id, x, y, dk){
 
   // TODOは予定前から追加できる。
   document.getElementById('evDetailAddTodo').style.display = '';
+  document.getElementById('evDetailImportant').textContent = ev.important
+    ? '★ 重要を外す'
+    : '★ 重要にする';
 
   document.getElementById('evDetailPanel').classList.add('open');
 }
@@ -1686,6 +1689,14 @@ document.getElementById('evDetailAddTodo').addEventListener('click', () => {
   const evEl = document.querySelector(`[data-ev-id="${ctxTargetId}"]`);
   const dk = evEl?.closest('.day-col')?.dataset.dateKey;
   openTodoModal(null, ctxTargetId, dk);
+});document.getElementById('evDetailImportant').addEventListener('click', () => {
+  const ev = events.find(event => event.id === ctxTargetId);
+  if (!ev) return;
+  ev.important = !ev.important;
+  document.getElementById('evDetailImportant').textContent = ev.important
+    ? '★ 重要を外す'
+    : '★ 重要にする';
+  commitScheduleChange();
 });
 document.getElementById('evDetailDelete').addEventListener('click', () => {
   document.getElementById('evDetailPanel').classList.remove('open');
