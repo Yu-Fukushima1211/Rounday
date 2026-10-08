@@ -201,6 +201,7 @@ function normalizeEvent(ev) {
   }
 
   normalized.memo = typeof normalized.memo === 'string' ? normalized.memo : '';
+  normalized.important = !!normalized.important;
 
   normalized.dateKey = typeof normalized.dateKey === 'string'
     ? normalized.dateKey
@@ -1373,6 +1374,7 @@ function openCreateModal(dKey,sMin,eMin){
   document.getElementById('modalTitle').textContent='NEW EVENT';
   document.getElementById('fTitle').value='';
   document.getElementById('fMemo').value='';
+  document.getElementById('fImportant').checked=false;
   document.getElementById('fRepeat').value='none';
   selectedWeekdays=[];
   selectedMonthWeeks=[];
@@ -1412,6 +1414,7 @@ function openEditModal(id){
   document.getElementById('modalTitle').textContent='EDIT EVENT';
   document.getElementById('fTitle').value=ev.title;
   document.getElementById('fMemo').value=ev.memo||'';
+  document.getElementById('fImportant').checked=!!ev.important;
   setType(ev.type); setColor(ev.color);
   setSelTime('fSh','fSm',ev.start); setSelTime('fEh','fEm',ev.end);
   const rep=ev.repeat||{type:'none'};
@@ -1533,6 +1536,7 @@ document.getElementById('modalSave').addEventListener('click',()=>{
   const obj={
     title, type:selectedType, color:selectedColor, start:sMin, end:eMin,
     memo:document.getElementById('fMemo').value.trim(),
+    important:document.getElementById('fImportant').checked,
     repeat, dateKey:pendingDay,
     linkedGroupId:document.getElementById('fLinkedGroup').value||null,
     notification:{
@@ -3558,6 +3562,14 @@ function renderCalGrid() {
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   const todayKey = dateKey(new Date());
   const anchorKey = dateKey(anchorDate);
+  const importantByDate = new Map();
+  allVisibleEvents()
+    .filter(event => event.important && event.dateKey.startsWith(`${calYear}-${String(calMonth + 1).padStart(2, '0')}-`))
+    .forEach(event => {
+      const items = importantByDate.get(event.dateKey) || [];
+      items.push(event);
+      importantByDate.set(event.dateKey, items);
+    });
   for (let i = 0; i < firstDow; i++) {
     const el = document.createElement('div');
     el.className = 'cal-day empty';
@@ -3566,10 +3578,23 @@ function renderCalGrid() {
   for (let d = 1; d <= daysInMonth; d++) {
     const el = document.createElement('div');
     el.className = 'cal-day';
-    el.textContent = d;
+    const number = document.createElement('span');
+    number.className = 'cal-day-number';
+    number.textContent = d;
+    el.appendChild(number);
     const dk = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     if (dk === todayKey) el.classList.add('is-today');
     if (dk === anchorKey) el.classList.add('is-anchor');
+    const importantEvents = importantByDate.get(dk) || [];
+    if (importantEvents.length > 0) {
+      const mark = document.createElement('button');
+      mark.type = 'button';
+      mark.className = 'cal-important-mark';
+      mark.setAttribute('aria-label', `${importantEvents.length}件の重要な予定`);
+      mark.title = `${importantEvents.length}件の重要な予定`;
+      mark.addEventListener('click', event => { event.stopPropagation(); openImportantEventsModal(dk); });
+      el.appendChild(mark);
+    }
     el.addEventListener('click', () => {
       anchorDate = new Date(calYear, calMonth, d);
       buildGrid();
@@ -3600,6 +3625,31 @@ document.getElementById('calYear').addEventListener('change', function() {
 document.getElementById('calMonth').addEventListener('change', function() {
   calMonth = Number(this.value); renderCalGrid();
 });
+
+function openImportantEventsModal(dk) {
+  const items = allVisibleEvents().filter(event => event.important && event.dateKey === dk).sort((a, b) => a.start - b.start);
+  const date = new Date(`${dk}T00:00:00`);
+  document.getElementById('importantEventsDate').textContent = `${date.getMonth() + 1}/${date.getDate()}（${DOW[date.getDay()]}）`;
+  const list = document.getElementById('importantEventsList');
+  list.innerHTML = '';
+  items.forEach(event => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'important-event-item';
+    item.innerHTML = `<span class="important-event-time">${minToTime(event.start)}</span><span class="important-event-title">${esc(event.title)}</span>`;
+    item.addEventListener('click', () => {
+      anchorDate = stripTime(new Date(`${dk}T00:00:00`));
+      if (numDays === 7) anchorDate = getWeekStart(anchorDate);
+      buildGrid(); updateCalOpenBtn(); closeImportantEventsModal();
+    });
+    list.appendChild(item);
+  });
+  document.getElementById('calPickerOverlay').classList.remove('open');
+  document.getElementById('importantEventsOverlay').classList.add('open');
+}
+function closeImportantEventsModal() { document.getElementById('importantEventsOverlay').classList.remove('open'); }
+document.getElementById('importantEventsClose').addEventListener('click', closeImportantEventsModal);
+document.getElementById('importantEventsOverlay').addEventListener('click', event => { if (event.target.id === 'importantEventsOverlay') closeImportantEventsModal(); });
 
 // ── ドロワー ──
 function openDrawer(){ document.getElementById('drawer').classList.add('open'); document.getElementById('drawerOverlay').classList.add('open'); }

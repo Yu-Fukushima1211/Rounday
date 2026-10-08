@@ -79,6 +79,10 @@
     <label>予定名</label>
     <input type="text" id="fTitle" placeholder="例：数学の授業">
   </div>
+  <div class="field important-event-field">
+    <input type="checkbox" id="fImportant">
+    <label for="fImportant">重要な予定としてカレンダーに表示</label>
+  </div>
   <div class="field">
     <label>タイプ</label>
     <div class="type-toggle">
@@ -446,6 +450,14 @@
   </div>
 </div>
 
+<!-- IMPORTANT EVENTS -->
+<div class="overlay" id="importantEventsOverlay">
+  <div class="modal important-events-modal">
+    <div class="modal-header"><span class="modal-title">重要な予定</span><button class="modal-close" id="importantEventsClose">×</button></div>
+    <div class="modal-body"><div class="important-events-date" id="importantEventsDate"></div><div class="important-events-list" id="importantEventsList"></div></div>
+  </div>
+</div>
+
 <!-- SCHEDULING BANNER -->
 <div id="schedulingBanner">
   <span>時間帯をドラッグして予定を作成</span>
@@ -794,6 +806,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260803-5"></script>
+<script src="app.js?v=20261008-1"></script>
 </body>
 </html>
