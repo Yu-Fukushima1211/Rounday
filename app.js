@@ -441,6 +441,7 @@ let selectedColor = COLORS[0];
 let selectedWeekdays = [];
 let selectedMonthWeeks = [];
 let ctxTargetId = null;
+let ctxTargetDateKey = null;
 let dragDay = null, dragStartY = 0, dragEl = null, isDragging = false;
 
 // ── TODO機能 ──
@@ -1067,6 +1068,11 @@ match=weeks.includes(weekOfMonth);
   return results;
 }
 
+function isImportantOnDate(event, dk = event.dateKey) {
+  const base = event._baseId ? events.find(item => item.id === event._baseId) || event : event;
+  return (base.importantDates || []).includes(dk);
+}
+
 function allVisibleEvents(){
   const result=[];
   events.forEach(ev=>{
@@ -1616,6 +1622,7 @@ function openNotifEditFromCtx(evId){
 // ── コンテキストメニュー ──
 function openCtx(id, x, y, dk){
   ctxTargetId = id;
+  ctxTargetDateKey = dk;
   const ev = events.find(e => e.id === id);
   if(!ev) return;
 
@@ -1638,9 +1645,7 @@ function openCtx(id, x, y, dk){
 
   // TODOは予定前から追加できる。
   document.getElementById('evDetailAddTodo').style.display = '';
-  document.getElementById('evDetailImportant').textContent = ev.important
-    ? '★ 重要を外す'
-    : '★ 重要にする';
+  document.getElementById('evDetailImportant').textContent = isImportantOnDate(ev, ctxTargetDateKey) ? '★ この日の重要を外す' : '★ この日を重要にする';
 
   document.getElementById('evDetailPanel').classList.add('open');
 }
@@ -1691,11 +1696,10 @@ document.getElementById('evDetailAddTodo').addEventListener('click', () => {
   openTodoModal(null, ctxTargetId, dk);
 });document.getElementById('evDetailImportant').addEventListener('click', () => {
   const ev = events.find(event => event.id === ctxTargetId);
-  if (!ev) return;
-  ev.important = !ev.important;
-  document.getElementById('evDetailImportant').textContent = ev.important
-    ? '★ 重要を外す'
-    : '★ 重要にする';
+  if (!ev || !ctxTargetDateKey) return;
+  const dates = ev.importantDates || [];
+  ev.importantDates = dates.includes(ctxTargetDateKey) ? dates.filter(dk => dk !== ctxTargetDateKey) : [...dates, ctxTargetDateKey];
+  document.getElementById('evDetailImportant').textContent = isImportantOnDate(ev, ctxTargetDateKey) ? '★ この日の重要を外す' : '★ この日を重要にする';
   commitScheduleChange();
 });
 document.getElementById('evDetailDelete').addEventListener('click', () => {
@@ -3596,7 +3600,7 @@ function renderCalGrid() {
   const anchorKey = dateKey(anchorDate);
   const importantByDate = new Map();
   allVisibleEvents()
-    .filter(event => event.important && event.dateKey.startsWith(`${calYear}-${String(calMonth + 1).padStart(2, '0')}-`))
+    .filter(event => isImportantOnDate(event) && event.dateKey.startsWith(`${calYear}-${String(calMonth + 1).padStart(2, '0')}-`))
     .forEach(event => {
       const items = importantByDate.get(event.dateKey) || [];
       items.push(event);
@@ -3659,7 +3663,7 @@ document.getElementById('calMonth').addEventListener('change', function() {
 });
 
 function openImportantEventsModal(dk) {
-  const items = allVisibleEvents().filter(event => event.important && event.dateKey === dk).sort((a, b) => a.start - b.start);
+  const items = allVisibleEvents().filter(event => isImportantOnDate(event, dk) && event.dateKey === dk).sort((a, b) => a.start - b.start);
   const date = new Date(`${dk}T00:00:00`);
   document.getElementById('importantEventsDate').textContent = `${date.getMonth() + 1}/${date.getDate()}（${DOW[date.getDay()]}）`;
   const list = document.getElementById('importantEventsList');
